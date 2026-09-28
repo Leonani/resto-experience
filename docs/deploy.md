@@ -77,12 +77,16 @@ Dashboard del proyecto → **Settings** → **Environment Variables**:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Production, Preview, Development | Sí |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Production**, Preview | **No** |
 | `IMPORT_TOKEN` | **Production**, Preview | **No** |
-| `REVIEWS_LOGIN_USER` | **Production**, Preview | **No** |
-| `REVIEWS_LOGIN_PASS` | **Production**, Preview | **No** |
 | `REVIEWS_REPLY_TOKEN` | **Production**, Preview | **No** |
 
-Las del bloque de escritura (`SUPABASE_SERVICE_ROLE_KEY`, `IMPORT_TOKEN` y las tres
-`REVIEWS_*`) se marcan como **Sensitive** para que Vercel las enmascare en los logs.
+Las del bloque de escritura (`SUPABASE_SERVICE_ROLE_KEY`, `IMPORT_TOKEN` y
+`REVIEWS_REPLY_TOKEN`) se marcan como **Sensitive** para que Vercel las enmascare en
+los logs.
+
+> El usuario y la contraseña **no** son variables de entorno: viven en la tabla
+> `auth_users` de Supabase (hash scrypt). Antes de desplegar, asegurate de que la tabla
+> existe y tiene la fila del usuario. La tabla y el seed demo están en
+> `supabase/schema.sql` (aplicar desde el SQL Editor del dashboard).
 
 Después de agregarlas: **Deployments** → redeploy. Vercel no reinyecta variables
 en un build ya hecho.
@@ -114,9 +118,11 @@ curl -X POST https://<tu-dominio>.vercel.app/api/import \
 
 # La sesión de escritura: login con credenciales correctas responde 200 y
 # devuelve el token; las escrituras sin token responden 401.
+# Las credenciales viven en auth_users (ver arriba): usuario demo "gerente",
+# contraseña demo "Password123". En producción, usar la fila real de la tabla.
 curl -X POST https://<tu-dominio>.vercel.app/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"$REVIEWS_LOGIN_USER","password":"$REVIEWS_LOGIN_PASS"}'
+  -d '{"username":"gerente","password":"<PASSWORD_DE_AUTH_USERS>"}'
 
 curl -X POST https://<tu-dominio>.vercel.app/api/generate-draft \
   -d '{"reviewId":"rv-101"}'
@@ -156,11 +162,12 @@ const supabase = createClient(
 
 - [ ] `git check-ignore -v .env.local` devuelve una regla
 - [ ] `git status` no lista ningún `.env*`
-- [ ] `supabase/schema.sql` aplicado (4 tablas)
-- [ ] `pg_policies` no muestra políticas de escritura sobre `reviews` ni `audit_logs`
-- [ ] `SUPABASE_SERVICE_ROLE_KEY`, `IMPORT_TOKEN` y las tres `REVIEWS_*` marcadas como Sensitive
+- [ ] `supabase/schema.sql` aplicado (5 tablas, incluida `auth_users`)
+- [ ] `auth_users` tiene la fila del usuario de producción (hash scrypt de una contraseña fuerte, **no** `Password123`)
+- [ ] `pg_policies` no muestra políticas de escritura sobre `reviews`, `audit_logs` ni `auth_users`
+- [ ] `SUPABASE_SERVICE_ROLE_KEY`, `IMPORT_TOKEN` y `REVIEWS_REPLY_TOKEN` marcadas como Sensitive
 - [ ] `IMPORT_TOKEN` generado con `crypto.randomBytes(32)`, no con una palabra
-- [ ] `REVIEWS_LOSIN_PASS` distinta de cualquier contraseña usada en local; `REVIEWS_REPLY_TOKEN` generado con `crypto.randomBytes(32)`
+- [ ] `REVIEWS_REPLY_TOKEN` generado con `crypto.randomBytes(32)`
 - [ ] Deploy triggered tras agregar las variables
 - [ ] `POST /api/import` responde 200 con el token
 - [ ] `POST /api/auth/login` responde 200 y devuelve el token

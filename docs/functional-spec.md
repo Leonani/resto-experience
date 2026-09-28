@@ -208,9 +208,10 @@ resolver solo.
 
 **Regla.** Ver la bandeja (métricas, filtros y listado) no requiere sesión: la URL se puede
 compartir y quien la reciba ve exactamente la misma vista, en modo lectura. Generar
-borradores y guardar respuestas exige iniciar sesión con el usuario único configurado en el
-servidor (`REVIEWS_LOGIN_USER` / `REVIEWS_LOGIN_PASS`); las escrituras envían el token
-(`REVIEWS_REPLY_TOKEN`) como `Authorization: Bearer <token>`.
+borradores y guardar respuestas exige iniciar sesión con el usuario de la bandeja, que vive
+en la tabla `auth_users` de Supabase con la contraseña hasheada con scrypt (no en el
+entorno); las escrituras envían el token (`REVIEWS_REPLY_TOKEN`, en el entorno) como
+`Authorization: Bearer <token>`.
 
 **Justificación.** Los filtros viven en la URL (HU-02) justamente para poder pasarle el
 link a un colega; si la autenticación tapara toda la pantalla, ese caso de uso moriría. La
@@ -577,11 +578,17 @@ Escenario: Sesión válida al recargar
   Entonces el token guardado se valida contra /api/auth/verify
   Y la bandeja se muestra con escritura habilitada
 
-Escenario: Servidor sin autenticación configurada
-  Dado que el servidor no tiene REVIEWS_LOGIN_USER/PASS/REPLY_TOKEN configurados
-  Cuando intento iniciar sesión
+Escenario: Servidor sin token de sesión configurado
+  Dado que el servidor no tiene REVIEWS_REPLY_TOKEN configurado
+  Cuando intento iniciar sesión con usuario y contraseña válidos
   Entonces el endpoint responde success = "fail" con status 503
   Y ninguna escritura puede pasar (fail-closed)
+
+Escenario: Usuario inexistente en auth_users
+  Dado que el usuario no está registrado en la tabla auth_users de Supabase
+  Cuando intento iniciar sesión
+  Entonces el endpoint responde success = "fail" con status 401
+  Y se registra un evento AUTH_LOGIN con response_status = "fail"
 ```
 
 ---
