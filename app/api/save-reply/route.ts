@@ -1,4 +1,5 @@
 import { logAuditEvent } from '@/lib/audit';
+import { isReplyAuthorized, readAuthConfig } from '@/lib/auth';
 import { createClientAdmin } from '@/lib/supabase/client';
 import {
   buildErrorResponse,
@@ -12,8 +13,34 @@ import {
  *
  * Persiste la respuesta que el usuario confirmó. Este es el único camino por
  * el que `reviews.reply_text` se escribe desde la aplicación.
+ *
+ * Escritura protegida: exige `Authorization: Bearer <token>` (el mismo que
+ * devuelve `/api/auth/login`). El rechazo se audita; sin log, un intento sin
+ * sesión es indistinguible de que nadie tocó la app.
  */
 export async function POST(request: Request): Promise<Response> {
+  const config = readAuthConfig();
+
+  if (!isReplyAuthorized(request, config)) {
+    await logAuditEvent({
+      action: 'SAVE_REPLY',
+      entity_name: 'reviews',
+      entity_id: null,
+      method: 'POST',
+      request_payload: null,
+      response_status: 'fail',
+      response_data: null,
+      error_message: 'No autorizado: iniciá sesión para responder.',
+    });
+
+    return jsonResponse(
+      buildErrorResponse<SaveReplyResult>(
+        'No autorizado: iniciá sesión para responder.',
+      ),
+      401,
+    );
+  }
+
   let reviewId: string | undefined;
   let replyText: string | undefined;
 

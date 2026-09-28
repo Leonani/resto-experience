@@ -204,6 +204,30 @@ resolver solo.
 
 ---
 
+### RN-08 — Listado público en modo lectura; escribir exige sesión
+
+**Regla.** Ver la bandeja (métricas, filtros y listado) no requiere sesión: la URL se puede
+compartir y quien la reciba ve exactamente la misma vista, en modo lectura. Generar
+borradores y guardar respuestas exige iniciar sesión con el usuario único configurado en el
+servidor (`REVIEWS_LOGIN_USER` / `REVIEWS_LOGIN_PASS`); las escrituras envían el token
+(`REVIEWS_REPLY_TOKEN`) como `Authorization: Bearer <token>`.
+
+**Justificación.** Los filtros viven en la URL (HU-02) justamente para poder pasarle el
+link a un colega; si la autenticación tapara toda la pantalla, ese caso de uso moriría. La
+escritura es la parte no compartible: un visitante puede ver qué filtros usamos, pero no
+contestar en nombre del restaurante.
+
+**Consecuencias observables.**
+- Al abrir la app se ve el spinner "Verificando usuario…" mientras se valida el token
+  guardado.
+- Sin sesión (o con token inválido), las tarjetas muestran "Modo lectura. Iniciá sesión
+  para generar borradores y contestar." y un botón flotante "Iniciar sesión".
+- `POST /api/save-reply` y `POST /api/generate-draft` sin token responden 401.
+- Sin la configuración en el servidor, la app queda de solo lectura y el login responde
+  503 (fail-closed: nunca se deja pasar una escritura por un accidente de entorno).
+
+---
+
 ## 5. Historias de usuario
 
 ### HU-01 — Importación idempotente
@@ -491,6 +515,57 @@ Escenario: Ninguna auditoría expone credenciales
 
 ---
 
+### HU-07 — Sesión de escritura con modo lectura público
+
+> Como gerente, quiero que el link de la bandeja se pueda compartir sin exponer la
+> posibilidad de contestar, y entrar con usuario y contraseña cuando quiero escribir.
+
+```gherkin
+Escenario: Abrir la app sin sesión
+  Dado que no guardé ninguna sesión en este navegador
+  Cuando abro la bandeja
+  Entonces veo el spinner "Verificando usuario…"
+  Y el dashboard se muestra completo con las métricas y los filtros
+  Y las tarjetas muestran "Modo lectura. Iniciá sesión para generar borradores y contestar."
+  Y hay un botón flotante "Iniciar sesión"
+
+Escenario: Login con credenciales correctas
+  Dado el botón flotante "Iniciar sesión"
+  Cuando ingreso usuario y contraseña correctos
+  Entonces el endpoint responde success = "ok" con el token
+  Y se registra un evento AUTH_LOGIN con response_status = "ok"
+  Y las tarjetas muestran los botones de responder y generar borrador
+
+Escenario: Login con credenciales incorrectas
+  Dado el botón flotante "Iniciar sesión"
+  Cuando ingreso usuario o contraseña incorrectos
+  Entonces el endpoint responde success = "fail" con status 401
+  Y se registra un evento AUTH_LOGIN con response_status = "fail"
+  Y la interfaz muestra "Usuario o contraseña incorrectos."
+  Y la bandeja sigue en modo lectura
+
+Escenario: Escribir sin sesión queda cerrado
+  Dado que no hay sesión
+  Cuando llamo a save-reply o generate-draft sin token
+  Entonces el endpoint responde success = "fail" con status 401
+  Y se registra un evento SAVE_REPLY / GENERATE_AI_DRAFT con response_status = "fail"
+  Y su error_message es "No autorizado: iniciá sesión para responder."
+
+Escenario: Sesión válida al recargar
+  Dado que inicie sesión en este navegador
+  Cuando recargo la página
+  Entonces el token guardado se valida contra /api/auth/verify
+  Y la bandeja se muestra con escritura habilitada
+
+Escenario: Servidor sin autenticación configurada
+  Dado que el servidor no tiene REVIEWS_LOGIN_USER/PASS/REPLY_TOKEN configurados
+  Cuando intento iniciar sesión
+  Entonces el endpoint responde success = "fail" con status 503
+  Y ninguna escritura puede pasar (fail-closed)
+```
+
+---
+
 ## 6. Datos de referencia
 
 Valores esperados con el dataset actual. Sirven como contrato de aceptación: si el código
@@ -522,7 +597,7 @@ Reseña descartada: `rv-301`.
 Explícitamente fuera, para que no se cuelgue:
 
 - Integración con la API de Google My Business (la v1 consume exportaciones)
-- Autenticación y roles de usuario
+- Autenticación multi-usuario y roles (la v1 usa un usuario único de escritura, RN-08)
 - Envío real de la respuesta a Google
 - Gráficos históricos y tendencias
 - Exportación de métricas a Excel o PDF

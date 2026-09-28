@@ -37,9 +37,16 @@ El status HTTP acompana al contrato: `200` con `success: 'ok'`, `4xx`/`5xx` con
 
 - `SUPABASE_SERVICE_ROLE_KEY` se lee **exclusivamente** en el servidor.
 - La API Key del LLM se lee **exclusivamente** en el servidor, dentro del route handler.
+- `REVIEWS_LOGIN_USER`, `REVIEWS_LOGIN_PASS` y `REVIEWS_REPLY_TOKEN` se leen
+  **exclusivamente** en el servidor. Ninguna lleva `NEXT_PUBLIC_`.
 - Al cliente solo sale lo que lleva prefijo `NEXT_PUBLIC_`.
 - Prohibido el fallback de la service role a la anon key. Una escritura que degrada
   permisos en silencio rompe la trazabilidad sin avisar: si falta la key, fallar.
+- Las escrituras (`save-reply`, `generate-draft`) exigen `Authorization: Bearer <token>`.
+  `lib/auth.ts` es puro (sin `server-only`) para testearlo con vitest; la protección viene
+  de que `readAuthConfig` devuelve `null` sin las `REVIEWS_*` (fail-closed) y de que nunca
+  se importa desde un Client Component. Regla de revisión: ningún Client Component importa
+  de `lib/auth`; usar el contexto de `AuthGate` (`useAuth`).
 - Usar la API `taint` de Next.js si un valor de servidor se acerca a un Client Component.
 
 ### 2.3 Trazabilidad
@@ -48,13 +55,18 @@ Toda operacion que cree, modifique o falle escribe en `audit_logs` usando
 `logAuditEvent` de `lib/audit.ts`.
 
 Acciones: `IMPORT_REVIEWS`, `IMPORT_REPLY`, `SKIP_REVIEW`, `GENERATE_AI_DRAFT`,
-`SAVE_REPLY`.
+`SAVE_REPLY`, `AUTH_LOGIN`.
 
 - `method`: `'POST'` para Route Handlers, `'SERVER_ACTION'` para Server Actions
 - `response_status`: `'ok'` | `'fail'`
 - Los rechazos por clave foranea se registran con `status: 'fail'` y `error_message`
   explicando el motivo. Un registro descartado sin log es indistinguible de uno que
   nunca llego.
+- El login se audita (ok y fallo, action `AUTH_LOGIN`, `entity_name: 'auth'`,
+  `entity_id: null`); `verify` NO se audita (no es mutacion). La password nunca va a
+  `request_payload`: solo el username.
+- Un rechazo de escritura por falta de sesion se audita con la misma `action`
+  (`SAVE_REPLY` / `GENERATE_AI_DRAFT`), `entity_id: null` y 401.
 
 ### 2.4 Contrato de Supabase
 

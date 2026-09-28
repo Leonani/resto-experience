@@ -15,21 +15,26 @@
 │  app/page.tsx (Server Component)                                     │
 │    ├─ lee ?sede &estado &estrellas   (searchParams = Promise)         │
 │    ├─ lee catalogo + métricas        (Supabase, anon key)             │
-│    └─ pasa datos a <Bandeja>         (Client Component)              │
+│    └─ pasa datos a <AuthGate>        (Client Component)              │
 │                                                                       │
+│  <AuthGate>        spinner "Verificando usuario…" + sesión en contexto│
 │  <FilterBar> ──useRouter──> push() ──> la URL es el estado            │
 │  <SummaryHeader>      métricas ya calculadas en el servidor           │
 │  <ReviewCard>         uncontrolled + fetch a /api/*                   │
 └───────────────────────────────────────────────────────────────────────┘
             │ POST (solo mutaciones)
+            │ Authorization: Bearer <token> (si hay sesión)
             ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │  SERVIDOR (Node runtime)                                             │
 │                                                                       │
-│  app/api/import/route.ts                                             │
-│  app/api/generate-draft/route.ts                                     │
-│  app/api/save-reply/route.ts                                         │
+│  app/api/auth/login/route.ts      valida credenciales → token         │
+│  app/api/auth/verify/route.ts     valida la sesión (sin auditar)      │
+│  app/api/import/route.ts          token x-import-token (destructivo)  │
+│  app/api/generate-draft/route.ts  Bearer ← REVIEWS_REPLY_TOKEN        │
+│  app/api/save-reply/route.ts      Bearer ← REVIEWS_REPLY_TOKEN        │
 │    │                                                                  │
+│    ├─ isReplyAuthorized() / readAuthConfig()  ← fail-closed           │
 │    ├─ createClientAdmin()   ← SUPABASE_SERVICE_ROLE_KEY               │
 │    ├─ logAuditEvent()       ← SIEMPRE, éxito y fallo                 │
 │    └─ buildSuccess/ErrorResponse()  ← contrato único                  │
@@ -114,16 +119,21 @@ lectura para la app.
 app/
   page.tsx                      Server Component. Lee searchParams.
   api/
+    auth/
+      login/route.ts            POST: valida credenciales → token
+      verify/route.ts           POST: valida la sesión guardada
     import/route.ts             POST: seed catálogo + upsert reseñas
-    generate-draft/route.ts     POST: borrador IA
-    save-reply/route.ts         POST: persistir respuesta
+    generate-draft/route.ts     POST: borrador IA (Bearer)
+    save-reply/route.ts         POST: persistir respuesta (Bearer)
 components/
+  AuthGate.tsx                  Client. Sesión + spinner + login y logout.
   FilterBar.tsx                 Client. Escribe en la URL.
   SummaryHeader.tsx             Server. Bento de métricas.
   ReviewCard.tsx                Client. Texto, borrador, guardar.
   EmptyState.tsx                Sin datos / sin resultados.
   ui/                           Componentes shadcn (no tocar)
 lib/
+  auth.ts                       Autenticación pura (testeable, sin server-only)
   types/
     api.ts                      ApiResponse<T> + builders
     review.ts                   tipos del dominio
@@ -245,9 +255,11 @@ normalizaron en la base (jsonb string → objeto) el mismo día.
 ### Tipos de error devueltos al cliente
 
 | Situación | HTTP | `success` | Mensaje |
-|---|---|---|---|
+|---|---|---|
 | Éxito | 200 | `ok` | Descriptivo del resultado |
 | Body inválido / faltante | 400 | `fail` | Qué campo falla |
+| Sin sesión en una escritura | 401 | `fail` | "No autorizado: iniciá sesión para responder." |
+| Auth no configurada en el servidor | 503 | `fail` | Que falta configuración (fail-closed) |
 | Recurso inexistente | 404 | `fail` | Que no existe |
 | Sin `LLM_API_KEY` | 200 | `ok` | `fromFallback: true`; usa el template local |
 | Error del proveedor de IA | 200 | `ok` | `aiError` con el motivo + borrador local |
@@ -282,6 +294,7 @@ Por eso RN-07 especifica que se audita el fallo, no solo el éxito.
 | `SKIP_REVIEW` | Cada registro descartado | `reviews` | `rv-301` |
 | `GENERATE_AI_DRAFT` | Cada intento de borrador | `reviews` | `rv-101` |
 | `SAVE_REPLY` | Cada intento de guardado | `reviews` | `rv-101` |
+| `AUTH_LOGIN` | Cada intento de login (éxito y fallo) | `auth` | `null` |
 
 `method` documenta el origen técnico, no la acción de negocio: `POST` para Route Handlers,
 `SERVER_ACTION` para Server Actions, `SCRIPT` para el `verify-metrics.ts`. La auditoría
@@ -291,6 +304,63 @@ sirve para reconstruir *cómo* pasó algo, no solo *qué* pasó.
 
 Misma razón que `success` en la API. Además evita el `NULL` de una fila insertada sin el
 campo: `NOT NULL` lo rechaza y el log se pierde, que es peor que no tener log.
+
+---
+
+## 5.1 Sesión de escritura (single user)
+
+### Qué se protege y qué no
+
+El listado y los filtros son **públicos por diseño**: están en la URL (sección 1), y se
+pueden compartir para que un colega vea exactamente la misma vista. Escribir no es
+compartible: exige sesión.
+
+| Recurso | Público | Protegido |
+|---|---|---|
+| `GET /` (métricas, filtros, listado) | Sí | — |
+| `POST /api/generate-draft` | — | `Authorization: Bearer <token>` |
+| `POST /api/save-reply` | — | `Authorization: Bearer <token>` |
+| `POST /api/import` | — | `x-import-token` (ya existía) |
+
+### El token se compara en el servidor, no en el cliente
+
+Las tres variables (`REVIEWS_LOGIN_USER`, `REVIEWS_LOGIN_PASS`, `REVIEWS_REPLY_TOKEN`) no
+llevan `NEXT_PUBLIC_`. Por eso `lib/auth.ts` es deliberadamente **sin `server-only`**:
+así se testea con vitest igual que `lib/draft/budget.ts`, y si un Client Component lo
+importara por error, `readAuthConfig` leería variables vacías → `null` → fail-closed. La
+sacrificio de la guarda de bundler se paga con la regla de dependencia de la sección 3.
+
+Flujo:
+
+1. Al abrir la app, `AuthGate` (Client Component) busca `reviews_reply_token` en
+   `localStorage` y lo valida contra `POST /api/auth/verify`. Mientras tanto muestra el
+   spinner "Verificando usuario…".
+2. Sin token (o token inválido) → `anonimo`: el dashboard se muestra completo pero sin
+   botones de escritura; `ReviewCard` avisa "Modo lectura". Un botón flotante abre el
+   login.
+3. `POST /api/auth/login` valida credenciales con `timingSafeEqual` (comparación a tiempo
+   constante sobre hash SHA-256, para no revelar la referencia por longitud). Éxito →
+   devuelve el token, que el cliente guarda y usa como Bearer.
+4. `save-reply` y `generate-draft` hacen el guard **antes de parsear el body**:
+   `readAuthConfig()` + `isReplyAuthorized()`. Rechazo → auditoría con `entity_id: null`
+   y 401 con el contrato.
+
+El login **se audita** (éxito y fallo, `AUTH_LOGIN`) porque un intento fallido sin log es
+indistinguible de que nadie tocó la app — la misma razón de siempre. `verify` **no** se
+audita: no es una mutación. Tampoco se audita ni se loguea la contraseña: `request_payload`
+del login lleva solo el username.
+
+### Fail-closed
+
+Sin configuración en el servidor, un header ausente o un token inválido, la escritura se
+rechaza. No existe un estado degradado en el que un olvido de entorno deje pasar
+silenciosamente una mutación: la app se vuelve de solo lectura y el login responde 503.
+
+### `localStorage`, no cookie
+
+`REVIEWS_*` no tienen `NEXT_PUBLIC_`, así que el servidor nunca emite el token en el HTML;
+guardarlo en una cookie conllevaría el riesgo de exponerlo. `localStorage` + Bearer por
+request es el camino más simple con el token siempre fuera del render.
 
 ---
 
@@ -395,6 +465,8 @@ reseñas que recibimos, respondimos 2" es la pregunta que hace el gerente.
 | `DraftProvider` + fallback | Integración directa con un LLM | La app funciona sin proveedor; la IA es opcional |
 | `calculateLocationSummary` pura | Cálculo dentro del Server Component | Los casos sucios son testeables sin base de datos |
 | Verificación por FK en BD | Solo validación en TypeScript | La BD es el último línea de defensa; TS no la reemplaza |
+| Sesión de escritura single user en `.env` | Auth multi-usuario / Supabase Auth | Un gerente, una sesión; proteger las mutaciones no requiere infraestructura de identidades |
+| Listado público + escritura con Bearer | Todo el dashboard autenticado | Los filtros en la URL son compartibles (sección 1); escribir no tiene por qué serlo |
 
 ---
 
@@ -403,7 +475,7 @@ reseñas que recibimos, respondimos 2" es la pregunta que hace el gerente.
 | Riesgo | Impacto | Mitigación en v1 |
 |---|---|---|
 | Política `reviews FOR UPDATE USING (true)` | La anon key puede escribir respuestas | Documentado en el README. Aceptable para demo, **bloqueante para producción** |
-| Sin autenticación | Cualquiera con la URL accede a la bandeja | Fuera de alcance declarado en el spec |
+| Múltiples usuarios comparten un único token | Una sesión es un solo par usuario/token | Aceptado: un gerente, una sesión. RRHH sería otro proyecto |
 | Importación en memoria | Un JSON muy grande se carga entero en el serverless | El dataset es de ~10 KB. A escala se procesaría por lotes |
 | Sin rate limit en los endpoints | Endpoints POST públicos | Fuera de alcance declarado |
 | Un único `await` por lote | Los upsert son secuenciales | Aceptable a este volumen; documentar si crece |

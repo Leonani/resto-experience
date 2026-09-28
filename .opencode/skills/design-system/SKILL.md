@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: Sistema de diseño y reglas de UI/UX para la bandeja de reseñas de la agencia gastronómica. Úsala al crear o modificar SummaryHeader (bento grid de métricas), FilterBar (filtros sincronizados con la URL), ReviewCard (borrador IA, edición inline, colores semánticos por estrellas), estados de carga, o cualquier componente de la bandeja. Contiene la paleta por estrellas, el indicador de borrador IA y la regla de "Sin datos" para sedes sin reseñas.
+description: Sistema de diseño y reglas de UI/UX para la bandeja de reseñas de la agencia gastronómica. Úsala al crear o modificar SummaryHeader (bento grid de métricas), FilterBar (filtros sincronizados con la URL), ReviewCard (borrador IA, edición inline, colores semánticos por estrellas), AuthGate (spinner de verificación, login, modo lectura), estados de carga, o cualquier componente de la bandeja. Contiene la paleta por estrellas, el indicador de borrador IA, la regla de "Sin datos" para sedes sin reseñas y la del modo lectura sin sesión.
 ---
 
 # Design System — Bandeja de Reseñas
@@ -101,3 +101,44 @@ mediante `useSearchParams`.
   Nunca una pantalla vacía sin explicación.
 - **Error**: mostrar `message` del contrato `{success, data, message}`. Nunca un toast
   genérico que oculte la causa.
+
+## 7. Sesión de escritura y modo lectura
+
+La bandeja es pública por diseño (`RN-08`): ver métricas, filtros y listado no exige
+sesión. Solo escribir lo exige. `AuthGate.tsx` (Client Component envuelve el `main` de
+`page.tsx`) maneja tres estados:
+
+### 7.1 Verificando usuario (spinner)
+
+- Pantalla completa `fixed inset-0 z-50` con `bg-white/80 backdrop-blur-sm`
+- Ícono `Loader2` girando (`text-slate-500`, `size-6`) + texto `text-slate-600`
+  **"Verificando usuario…"**
+- `role="status"`. Cubre la interfaz mientras se valida el token guardado contra
+  `/api/auth/verify`. Nunca bloquea la lectura final: al terminar se muestra el dashboard
+  en los dos casos.
+
+### 7.2 Modo lectura (sin sesión)
+
+- `SummaryHeader`, `FilterBar` y el listado se ven **iguales**: la lectura es pública.
+- `ReviewCard` no muestra ninguno de los botones de escritura (Generar borrador,
+  Responder, Editar, Guardar, Cancelar). En su lugar, el `footer` muestra un texto
+  `text-xs text-slate-400`:
+  **"Modo lectura. Iniciá sesión para generar borradores y contestar."**
+- Botón flotante `fixed right-4 bottom-4 z-40` variant `outline` con ícono `Sparkles` y
+  label **"Iniciar sesión"**. Abre un `Dialog` con:
+  - Título **"Iniciar sesión"**
+  - Description **"El listado y los filtros son públicos. La sesión habilita generar
+    borradores y contestar reseñas."**
+  - Campos `Input` Usuario y Contraseña (`Label` + `autoComplete` respectivo)
+  - Enviar deshabilitado mientras carga, con `Loader2` + "Iniciando…"
+  - Error inline `bg-rose-50 text-rose-700` con `role="alert"`
+
+### 7.3 Sesión iniciada
+
+- Pastilla flotante `fixed right-4 bottom-4 z-40` (borde `border-slate-200`, fondo blanco,
+  sombra): **"Sesión: {user}"** + botón ghost "Salir" (ícono `LogOut`).
+- Los botones de escritura vuelven a aparecer en cada `ReviewCard`.
+
+Reglas de honestidad heredadas del resto del sistema: un 401 de `save-reply` o
+`generate-draft` cierra la sesión en la UI (el servidor niega igual, fail-closed) y el
+mensaje del contrato se muestra sin inventar otra causa.

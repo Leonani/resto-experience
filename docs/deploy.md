@@ -77,9 +77,12 @@ Dashboard del proyecto → **Settings** → **Environment Variables**:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Production, Preview, Development | Sí |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Production**, Preview | **No** |
 | `IMPORT_TOKEN` | **Production**, Preview | **No** |
+| `REVIEWS_LOGIN_USER` | **Production**, Preview | **No** |
+| `REVIEWS_LOGIN_PASS` | **Production**, Preview | **No** |
+| `REVIEWS_REPLY_TOKEN` | **Production**, Preview | **No** |
 
-Las dos últimas se marcan como **Sensitive** para que Vercel las enmascare en
-los logs.
+Las del bloque de escritura (`SUPABASE_SERVICE_ROLE_KEY`, `IMPORT_TOKEN` y las tres
+`REVIEWS_*`) se marcan como **Sensitive** para que Vercel las enmascare en los logs.
 
 Después de agregarlas: **Deployments** → redeploy. Vercel no reinyecta variables
 en un build ya hecho.
@@ -108,6 +111,16 @@ curl -X POST https://<tu-dominio>.vercel.app/api/import
 # Con token, responde 200 con success: "ok"
 curl -X POST https://<tu-dominio>.vercel.app/api/import \
   -H "x-import-token: $IMPORT_TOKEN"
+
+# La sesión de escritura: login con credenciales correctas responde 200 y
+# devuelve el token; las escrituras sin token responden 401.
+curl -X POST https://<tu-dominio>.vercel.app/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"$REVIEWS_LOGIN_USER","password":"$REVIEWS_LOGIN_PASS"}'
+
+curl -X POST https://<tu-dominio>.vercel.app/api/generate-draft \
+  -d '{"reviewId":"rv-101"}'
+# → 401 { success: "fail", message: "No autorizado: iniciá sesión para responder." }
 ```
 
 ### La anon key no puede escribir
@@ -145,9 +158,12 @@ const supabase = createClient(
 - [ ] `git status` no lista ningún `.env*`
 - [ ] `supabase/schema.sql` aplicado (4 tablas)
 - [ ] `pg_policies` no muestra políticas de escritura sobre `reviews` ni `audit_logs`
-- [ ] `SUPABASE_SERVICE_ROLE_KEY` y `IMPORT_TOKEN` marcadas como Sensitive
+- [ ] `SUPABASE_SERVICE_ROLE_KEY`, `IMPORT_TOKEN` y las tres `REVIEWS_*` marcadas como Sensitive
 - [ ] `IMPORT_TOKEN` generado con `crypto.randomBytes(32)`, no con una palabra
+- [ ] `REVIEWS_LOSIN_PASS` distinta de cualquier contraseña usada en local; `REVIEWS_REPLY_TOKEN` generado con `crypto.randomBytes(32)`
 - [ ] Deploy triggered tras agregar las variables
 - [ ] `POST /api/import` responde 200 con el token
+- [ ] `POST /api/auth/login` responde 200 y devuelve el token
+- [ ] `POST /api/generate-draft` sin token responde 401
 - [ ] El UPDATE con anon key falla con 42501
 - [ ] `pnpm verify:metrics` verde antes de subir

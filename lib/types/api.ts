@@ -61,6 +61,20 @@ export type SaveReplyResult = {
   repliedAt: string;
 };
 
+/**
+ * Payload de un login exitoso: entrega el token que las escrituras exigen
+ * (`Authorization: Bearer <token>`) al resto de la sesión.
+ */
+export type LoginResult = {
+  token: string;
+  user: string;
+};
+
+/** Payload de verificación de sesión. `user` es el nombre del usuario configurado. */
+export type VerifyResult = {
+  user: string;
+};
+
 export function buildSuccessResponse<T>(data: T, message: string): ApiResponse<T> {
   return { success: 'ok', data, message };
 }

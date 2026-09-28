@@ -11,6 +11,7 @@ import {
   toneForRating,
   type ReviewWithLocation,
 } from "@/components/star-rating";
+import { useAuth } from "@/components/AuthGate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,9 +25,16 @@ import type { ApiResponse, DraftResult, SaveReplyResult } from "@/lib/types/api"
  * Estados: pendiente, respondida, o con borrador sin guardar (RN-06).
  * El borrador vive en el estado de este componente y NUNCA se persiste solo:
  * solo llega a `reply_text` cuando el usuario confirma.
+ *
+ * Sin sesión (`useAuth().status === 'anonimo'`) la tarjeta entra en modo
+ * lectura: se ve la reseña y si ya fue respondida, pero no hay botones de
+ * escritura. El guardado y el borrador además están protegidos en el servidor
+ * por `Authorization: Bearer`.
  */
 export function ReviewCard({ review }: { review: ReviewWithLocation }) {
   const router = useRouter();
+  const { status, token, logout } = useAuth();
+  const puedeResponder = status === "autenticado";
 
   const respondida = isResponded(review);
   const [editando, setEditando] = useState(false);
@@ -53,13 +61,20 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
     try {
       const res = await fetch("/api/generate-draft", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ reviewId: review.id }),
       });
 
       const body = (await res.json()) as ApiResponse<DraftResult>;
 
-      if (body.success === "ok" && body.data) {
+      if (res.status === 401) {
+        // Sesión vencida o el token se invalidó: la UI vuelve a modo lectura.
+        logout();
+        setError(body.message);
+      } else if (body.success === "ok" && body.data) {
         setFallback(body.data.fromFallback);
         setAiError(body.data.aiError);
         setBudgetReason(body.data.budgetReason);
@@ -88,13 +103,20 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
     try {
       const res = await fetch("/api/save-reply", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ reviewId: review.id, replyText: texto }),
       });
 
       const body = (await res.json()) as ApiResponse<SaveReplyResult>;
 
-      if (body.success === "ok") {
+      if (res.status === 401) {
+        // Sesión vencida o el token se invalidó: la UI vuelve a modo lectura.
+        logout();
+        setError(body.message);
+      } else if (body.success === "ok") {
         setBorrador(null);
         setGuardado(true);
         setTimeout(() => setGuardado(false), 2500);
@@ -256,7 +278,11 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
 
         {/* Acciones */}
         <footer className="flex flex-wrap items-center gap-2">
-          {!editando ? (
+          {!puedeResponder ? (
+            <p className="text-xs text-slate-400" data-testid="modo-lectura">
+              Modo lectura. Iniciá sesión para generar borradores y contestar.
+            </p>
+          ) : !editando ? (
             <>
               {!respondida && (
                 <Button
