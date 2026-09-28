@@ -36,6 +36,7 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [budgetReason, setBudgetReason] = useState<string | null>(null);
   const [fallback, setFallback] = useState(false);
   const [guardado, setGuardado] = useState(false);
 
@@ -46,6 +47,7 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
     setGenerando(true);
     setError(null);
     setAiError(null);
+    setBudgetReason(null);
     setFallback(false);
 
     try {
@@ -60,6 +62,7 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
       if (body.success === "ok" && body.data) {
         setFallback(body.data.fromFallback);
         setAiError(body.data.aiError);
+        setBudgetReason(body.data.budgetReason);
         setBorrador(body.data.text);
         setTexto(body.data.text);
         setEditando(true);
@@ -112,6 +115,7 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
     setTexto(review.reply_text ?? "");
     setEditando(false);
     setAiError(null);
+    setBudgetReason(null);
     setFallback(false);
   }
 
@@ -192,9 +196,11 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
             <p className="mb-1 text-xs font-medium text-indigo-700">
               {aiError
                 ? "Borrador local (la IA falló; revisalo antes de publicar)"
-                : fallback
-                  ? "Borrador local (sin IA configurada)"
-                  : "Borrador generado por IA"}
+                : budgetReason
+                  ? "Borrador local (límite de generación IA alcanzado)"
+                  : fallback
+                    ? "Borrador local (sin IA configurada)"
+                    : "Borrador generado por IA"}
             </p>
             <p className="text-sm leading-relaxed text-slate-700">{borrador}</p>
           </div>
@@ -210,6 +216,16 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
           </p>
         )}
 
+        {budgetReason && (
+          <p
+            className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700"
+            role="status"
+            data-testid="budget-note"
+          >
+            {budgetReason}
+          </p>
+        )}
+
         {editando && (
           <Textarea
             value={texto}
@@ -217,6 +233,7 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
               setTexto(e.target.value);
               setBorrador(null);
               setAiError(null);
+              setBudgetReason(null);
               setFallback(false);
             }}
             placeholder="Escribí la respuesta pública para esta reseña…"
@@ -264,6 +281,7 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
                   setTexto(review.reply_text ?? "");
                   setBorrador(null);
                   setAiError(null);
+                  setBudgetReason(null);
                   setFallback(false);
                   setEditando(true);
                 }}

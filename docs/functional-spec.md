@@ -187,7 +187,8 @@ qué escribió una persona y qué escribió el modelo.
 
 **Consecuencia observable.** Borde punteado violeta + indicador que nunca afirma que el texto
 vino de la IA si salió del fallback local: `Borrador generado por IA`, `Borrador local (sin IA
-configurada)` o `Borrador local (la IA falló...)` con alerta `Fallo borrador IA`.
+configurada)`, `Borrador local (la IA falló...)` con alerta `Fallo borrador IA`, o `Borrador local
+(límite de generación IA alcanzado)` con nota ámbar cuando se cortó la IA por protección de costos.
 
 ---
 
@@ -331,6 +332,15 @@ Escenario: El proveedor de IA falla
   Y la respuesta incluye aiError con el motivo del fallo
   Y la tarjeta muestra la alerta "Fallo borrador IA"
   Y no se finge que el texto vino de la IA
+
+Escenario: Límite de generación IA alcanzado
+  Dado una API Key configurada
+  Y se alcanzó el límite de generaciones IA de la ventana (por hora o por día)
+  Cuando pido un borrador
+  Entonces el endpoint responde success = "ok" con el template local
+  Y la respuesta incluye budgetReason con el motivo
+  Y la tarjeta lo marca como "Borrador local (límite de generación IA alcanzado)"
+  Y no se llamó al proveedor de IA
 ```
 
 ---

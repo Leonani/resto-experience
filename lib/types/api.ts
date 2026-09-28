@@ -45,6 +45,13 @@ export type DraftResult = {
    * como alerta, pero igual recibe `text` utilizable para seguir trabajando.
    */
   aiError: string | null;
+  /**
+   * Motivo por el que se usó el borrador local a pesar de haber IA configurada:
+   * se alcanzó el límite de generaciones IA (protección de costos). `null`
+   * cuando la IA se pudo razonar normalmente. La interfaz lo muestra como nota
+   * ámbar, distinta de la alerta roja de `aiError`.
+   */
+  budgetReason: string | null;
 };
 
 /** Payload de una respuesta guardada. */

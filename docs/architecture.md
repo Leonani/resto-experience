@@ -232,6 +232,16 @@ métodos. Un `JSONB` insertado con `undefined` (no `null`) rompe la consulta ent
 `safeJson` envuelve el `JSON.stringify` y devuelve `null` ante cualquier excepción. Perder
 el detalle de un log es aceptable; perder la mutación completa no.
 
+### Columnas `JSONB`: el insert debe guardar objetos, no strings
+
+Una columna `jsonb` recibe un objeto; si se le inserta un *string* JSON, PostgreSQL lo
+guarda como **string jsonb** (doble encoding) y los predicados `response_data->>campo`
+dejan de funcionar de forma silenciosa (`jsonb_typeof` devuelve `'string'`, las consultas
+por campo devuelven `null`). Por eso `logAuditEvent` inserta `cleanForJsonb(...)`:
+`safeJson` primero (limpia `undefined` y circulares) y luego `JSON.parse` para que la
+columna tenga un objeto real. Este defecto existió y se corrigió; las filas históricas se
+normalizaron en la base (jsonb string → objeto) el mismo día.
+
 ### Tipos de error devueltos al cliente
 
 | Situación | HTTP | `success` | Mensaje |
@@ -241,6 +251,7 @@ el detalle de un log es aceptable; perder la mutación completa no.
 | Recurso inexistente | 404 | `fail` | Que no existe |
 | Sin `LLM_API_KEY` | 200 | `ok` | `fromFallback: true`; usa el template local |
 | Error del proveedor de IA | 200 | `ok` | `aiError` con el motivo + borrador local |
+| Límite de generación IA alcanzado | 200 | `ok` | `budgetReason` + borrador local, sin llamar al proveedor |
 | Borrador vacío (defensivo) | 502 | `fail` | No se pudo generar |
 | Error de Supabase | 500 | `fail` | Genérico. El detalle va al log, no al cliente |
 
@@ -316,6 +327,29 @@ El fallback genera un borrador coherente con el tono según el rating (positivo 
 neutro / negativo) y, si `text` está vacío, agradece sin referenciar contenido (RN-04).
 No es un placeholder de "próximamente": es texto real y guardable. La app es completamente
 operativa sin proveedor de IA; la IA es una mejora, no un requisito.
+
+### Protección de costos (presupuesto de generaciones IA)
+
+La llamada real al proveedor es el único punto donde la app gasta plata, y hacia la red
+quedó abierta a cualquiera. `lib/draft/budget.ts` la acota con un presupuesto por ventana,
+antes de invocar al proveedor:
+
+- Se cuentan los **intentos reales** de IA en `audit_logs` (los últimos 60 min y las últimas
+  24 h). "Intento real" = `response_data->>fromFallback = 'false'` (éxito) o
+  `response_data->>aiError` presente (LLM configurado que falló). El template sin key no
+  cuenta: no costó nada.
+- Límites por entorno, con defaults: `LLM_BUDGET_PER_HOUR` (20) y `LLM_BUDGET_PER_DAY`
+  (50). El piso del demo es 16 generaciones diarias (un borrador por cada reseña de la
+  bandeja); 50 lo cubre con holgura sin el default exagerado de 100.
+- Sin margen → se usa el template local y el cliente recibe `budgetReason`, que la UI muestra
+  como nota ámbar (distinta de la alerta roja de `aiError`).
+- **Fallo cerrado**: si no se puede leer el contador, no se llama al proveedor. No se puede
+  auditar el costo de una llamada que no se verifica; el template sale igual.
+- El intento bloqueado también se audita (`budgetReason` en `response_data`), pero como queda
+  con `fromFallback: true` y sin `aiError`, no se autocontabiliza como intento real.
+
+El contador vive en `audit_logs` a propósito: no agrega tabla ni infraestructura nueva, y el
+dato de cuánto se gastó es reconciliable con la trazabilidad existente.
 
 El borrador **nunca** se persiste. Vive en el estado del `ReviewCard` y se marca de forma
 inequívoca (RN-06). Solo llega a `reviews.reply_text` cuando el usuario confirma.
