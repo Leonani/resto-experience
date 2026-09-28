@@ -74,11 +74,7 @@ function LocationCard({
       </header>
 
       <div className="mb-4 flex justify-center">
-        <RatingDonut
-          buckets={buckets}
-          averageRating={summary.averageRating}
-          sinDatos={sinDatos}
-        />
+        <RatingDonut buckets={buckets} />
       </div>
 
       <dl className="grid grid-cols-2 gap-4">

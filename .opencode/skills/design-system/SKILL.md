@@ -89,6 +89,9 @@ Client Component (`components/RatingsStackedChart.tsx`, recharts vía
 antes de los filtros:
 
 - Una barra por sede con los buckets `r5…rnull` apilados (`stackId`) y la paleta 2.1
+- Las barras ocupan todo el ancho de su slot (`barCategoryGap="0%"`, sin
+  `maxBarSize`): con 3 sedes cada barra es ≈ 1/3 del área del gráfico (el 35% del
+  contenedor que se pidió)
 - Legend abajo (`ChartLegendContent`) con los labels de la misma config
 - Eje Y con enteros (`allowDecimals={false}`), texto de la sede en X
 - Subtítulo `"N reseñas en M sedes"`, con los mismos números que el header
@@ -116,9 +119,11 @@ todo calculado como props: no hay `useEffect` ni fetch en el cliente.
 
 - Segmentos = buckets con `count > 0` de esa sede (los de 0 no entran al `Pie`)
 - `innerRadius=34`, `outerRadius=52`, `paddingAngle=2`, `stroke="none"`
-- En el centro, superpuesto con `absolute inset-0`:
-  - Sede con promedio: el promedio `toFixed(2)` + label "promedio"
-  - Sin reseñas: **"Sin datos"** (nunca `0.00`)
+- En el centro, superpuesto con `absolute inset-0`: la **cantidad total** de
+  reseñas de la sede (suma de todos los buckets, `tabular-nums`) + label "reseñas".
+  Ni promedio ni 0.0 inventado: una sede sin reseñas muestra "0" con el anillo
+  vacío, que es un dato real (RN-05 solo gobierna el promedio, que vive en la
+  tarjeta como "Sin datos")
 - Tooltip al pasar el cursor con el label del bucket y su conteo
 
 ### Regla crítica: "Sin datos"
