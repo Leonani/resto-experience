@@ -1,0 +1,210 @@
+{
+  "restaurants": [
+    {
+      "id": "rest-1",
+      "name": "La Parrilla del Sur"
+    },
+    {
+      "id": "rest-2",
+      "name": "Sakura Sushi"
+    }
+  ],
+  "locations": [
+    {
+      "id": "loc-1",
+      "restaurant_id": "rest-1",
+      "name": "Palermo"
+    },
+    {
+      "id": "loc-2",
+      "restaurant_id": "rest-1",
+      "name": "Belgrano"
+    },
+    {
+      "id": "loc-3",
+      "restaurant_id": "rest-2",
+      "name": "Centro"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "rv-101",
+      "location_id": "loc-1",
+      "author": "Mariana G.",
+      "rating": 5,
+      "text": "El bife de chorizo impecable y la atención muy cálida. Volvemos seguro.",
+      "published_at": "2026-09-02T19:40:00Z",
+      "updated_at": "2026-09-02T19:40:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-102",
+      "location_id": "loc-1",
+      "author": "Tomás R.",
+      "rating": 2,
+      "text": "Esperamos 50 minutos por la mesa reservada. La comida bien, pero así no.",
+      "published_at": "2026-09-03T22:10:00Z",
+      "updated_at": "2026-09-03T22:10:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-103",
+      "location_id": "loc-1",
+      "author": "Lucía P.",
+      "rating": 4,
+      "text": "Muy rico todo. Un poco ruidoso los viernes.",
+      "published_at": "2026-09-05T13:05:00Z",
+      "updated_at": "2026-09-05T13:05:00Z",
+      "reply": {
+        "text": "Gracias Lucía, los viernes se llena bastante. Te esperamos un día tranquilo.",
+        "replied_at": "2026-09-05T16:30:00Z"
+      }
+    },
+    {
+      "id": "rv-104",
+      "location_id": "loc-1",
+      "author": "Diego M.",
+      "rating": 1,
+      "text": "Nos cobraron un plato que no pedimos y tardaron en corregirlo.",
+      "published_at": "2026-09-07T21:55:00Z",
+      "updated_at": "2026-09-07T21:55:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-105",
+      "location_id": "loc-1",
+      "author": "Carla S.",
+      "rating": 5,
+      "text": "",
+      "published_at": "2026-09-08T12:00:00Z",
+      "updated_at": "2026-09-08T12:00:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-106",
+      "location_id": "loc-1",
+      "author": "Federico L.",
+      "rating": 3,
+      "text": "Correcto, sin sorpresas. Las papas frías.",
+      "published_at": "2026-09-10T20:20:00Z",
+      "updated_at": "2026-09-10T20:20:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-107",
+      "location_id": "loc-1",
+      "author": "Ana B.",
+      "rating": 4,
+      "text": "Buen lugar para ir en familia.",
+      "published_at": "2026-09-12T14:45:00Z",
+      "updated_at": "2026-09-12T14:45:00Z",
+      "reply": {
+        "text": "Gracias Ana, nos alegra que la hayan pasado bien.",
+        "replied_at": "2026-09-12T18:00:00Z"
+      }
+    },
+    {
+      "id": "rv-108",
+      "location_id": "loc-1",
+      "author": "Pablo V.",
+      "rating": null,
+      "text": "No pude dejar la calificación desde el celular, pero la experiencia fue buena.",
+      "published_at": "2026-09-14T11:30:00Z",
+      "updated_at": "2026-09-14T11:30:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-109",
+      "location_id": "loc-1",
+      "author": "Sofía K.",
+      "rating": 5,
+      "text": "La provoleta es lo mejor que probé en años.",
+      "published_at": "2026-09-16T23:15:00Z",
+      "updated_at": "2026-09-16T23:15:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-201",
+      "location_id": "loc-3",
+      "author": "Nicolás F.",
+      "rating": 5,
+      "text": "Sushi fresco y porciones generosas.",
+      "published_at": "2026-09-01T20:00:00Z",
+      "updated_at": "2026-09-01T20:00:00Z",
+      "reply": {
+        "text": "Gracias Nicolás.",
+        "replied_at": "2026-09-02T10:00:00Z"
+      }
+    },
+    {
+      "id": "rv-202",
+      "location_id": "loc-3",
+      "author": "Valentina O.",
+      "rating": 2,
+      "text": "El pedido llegó con una pieza menos y nadie contestó el teléfono.",
+      "published_at": "2026-09-04T21:30:00Z",
+      "updated_at": "2026-09-04T21:30:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-203",
+      "location_id": "loc-3",
+      "author": "Martín D.",
+      "rating": 4,
+      "text": "Muy bueno, aunque el local es chico.",
+      "published_at": "2026-09-06T13:10:00Z",
+      "updated_at": "2026-09-06T13:10:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-204",
+      "location_id": "loc-3",
+      "author": "Julieta A.",
+      "rating": 3,
+      "text": "Está bien. Un poco caro para lo que es.",
+      "published_at": "2026-09-09T19:50:00Z",
+      "updated_at": "2026-09-09T19:50:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-205",
+      "location_id": "loc-3",
+      "author": "Gonzalo T.",
+      "rating": 1,
+      "text": "Dos horas de demora en el delivery. Llegó frío.",
+      "published_at": "2026-09-11T22:40:00Z",
+      "updated_at": "2026-09-11T22:40:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-205",
+      "location_id": "loc-3",
+      "author": "Gonzalo T.",
+      "rating": 3,
+      "text": "Dos horas de demora en el delivery. Me llamaron al otro día para disculparse y me devolvieron el envío, así que actualizo.",
+      "published_at": "2026-09-11T22:40:00Z",
+      "updated_at": "2026-09-13T09:05:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-206",
+      "location_id": "loc-3",
+      "author": "Camila H.",
+      "rating": 5,
+      "text": "Los rolls de salmón con palta, increíbles.",
+      "published_at": "2026-09-15T20:25:00Z",
+      "updated_at": "2026-09-15T20:25:00Z",
+      "reply": null
+    },
+    {
+      "id": "rv-301",
+      "location_id": "loc-99",
+      "author": "Rodrigo N.",
+      "rating": 4,
+      "text": "Buena atención.",
+      "published_at": "2026-09-10T18:00:00Z",
+      "updated_at": "2026-09-10T18:00:00Z",
+      "reply": null
+    }
+  ]
+}

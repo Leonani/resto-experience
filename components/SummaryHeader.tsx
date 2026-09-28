@@ -1,0 +1,117 @@
+import { Progress } from "@/components/ui/progress";
+import { Star } from "lucide-react";
+
+import { toneClasses, toneForRating } from "@/components/star-rating";
+import type { LocationSummary } from "@/lib/metrics";
+import type { Location, Restaurant } from "@/lib/types/review";
+
+/**
+ * Bento de métricas: una tarjeta por sede.
+ *
+ * Server Component. Los datos llegan ya calculados desde `page.tsx`, así que
+ * no hay `useEffect` ni estado: el HTML inicial ya trae los números.
+ */
+export function SummaryHeader({
+  summaries,
+  locations,
+  restaurants,
+}: {
+  summaries: LocationSummary[];
+  locations: Location[];
+  restaurants: Restaurant[];
+}) {
+  return (
+    <section aria-label="Resumen por sede" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {summaries.map((summary) => {
+        const location = locations.find((l) => l.id === summary.locationId);
+        const restaurant = restaurants.find(
+          (r) => r.id === location?.restaurant_id,
+        );
+
+        return (
+          <LocationCard
+            key={summary.locationId}
+            summary={summary}
+            locationName={location?.name ?? summary.locationId}
+            restaurantName={restaurant?.name ?? ""}
+          />
+        );
+      })}
+    </section>
+  );
+}
+
+function LocationCard({
+  summary,
+  locationName,
+  restaurantName,
+}: {
+  summary: LocationSummary;
+  locationName: string;
+  restaurantName: string;
+}) {
+  const tone = toneForRating(summary.averageRating);
+  const classes = toneClasses(tone);
+  const sinDatos = summary.averageRating === null;
+
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <header className="mb-4">
+        <h2 className="text-base font-semibold text-slate-900">{locationName}</h2>
+        <p className="text-xs text-slate-500">{restaurantName}</p>
+      </header>
+
+      <dl className="grid grid-cols-2 gap-4">
+        <div>
+          <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            Reseñas
+          </dt>
+          <dd className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
+            {summary.totalReviews}
+          </dd>
+        </div>
+
+        <div>
+          <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            Promedio
+          </dt>
+          <dd className="mt-1">
+            {sinDatos ? (
+              // RN-05. Nunca "0.0": sería afirmar que hubo reseñas y todas
+              // fueron de 0 estrellas, que es falso.
+              <span
+                className="text-lg font-medium text-slate-400"
+                data-testid="sin-datos"
+              >
+                Sin datos
+              </span>
+            ) : (
+              <span
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xl font-semibold tabular-nums ${classes.bg} ${classes.border} ${classes.text}`}
+                data-testid="promedio"
+              >
+                <Star className="size-4 fill-current" aria-hidden="true" />
+                {summary.averageRating?.toFixed(2)}
+              </span>
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      <footer className="mt-4">
+        <div className="mb-1.5 flex items-baseline justify-between">
+          <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+            Respondido
+          </span>
+          <span className="text-sm font-semibold tabular-nums text-slate-700">
+            {summary.replyPercentage.toFixed(1)}%
+            <span className="ml-1 font-normal text-slate-400">
+              ({summary.repliedCount}/{summary.totalReviews})
+            </span>
+          </span>
+        </div>
+        <Progress value={summary.replyPercentage} className="h-1.5" />
+      </footer>
+    </article>
+  );
+}

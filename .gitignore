@@ -1,41 +1,83 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ─────────────────────────────────────────────────────────────────────────────
+# Dependencias
+# ─────────────────────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
+# ─────────────────────────────────────────────────────────────────────────────
+# Build
+# ─────────────────────────────────────────────────────────────────────────────
+# `out/` solo aplica con output estático. Este proyecto no lo usa, pero dejarlo
+# ignorado es barato y evita comitear un build por error.
 /out/
+.next/
+next-env.d.ts
 
-# production
-/build
+# ─────────────────────────────────────────────────────────────────────────────
+# Secretos — la regla que importa
+# ─────────────────────────────────────────────────────────────────────────────
+# Todo `.env*` está ignorado, y `.env.example` se vuelve a incluir con `!`.
+# El orden importa: el patrón general va PRIMERO y la excepción DESPUÉS.
+.env*
+!.env.example
 
-# misc
-.DS_Store
+# Credenciales de herramientas (MCP y similares), referenciadas desde
+# `opencode.json` con `{file:.secrets/<nombre>.key}`. Van aparte de `.env*` a
+# propósito: `.env*` es para la app Next.js y estas claves no tienen nada que
+# ver con ella. Tener una credencial de Context7 flotando en el entorno del
+# servidor Next es justo el tipo de cosa que un `console.log` termina filtrando.
+.secrets/
+
+# Cinturones y tirantes. `.env*` ya cubre los casos normales; estos atrapan los
+# nombres de siempre cuando alguien los crea con otro sufijo.
 *.pem
+*.key
+*.p12
+*.pfx
+service-role*.json
+secrets.json
 
-# debug
+# ─────────────────────────────────────────────────────────────────────────────
+# Tests y coverage
+# ─────────────────────────────────────────────────────────────────────────────
+coverage/
+.vitest/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Vercel
+# ─────────────────────────────────────────────────────────────────────────────
+.vercel
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sistema operativo y editores
+# ─────────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+*.swp
+*.swo
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TypeScript
+# ─────────────────────────────────────────────────────────────────────────────
+*.tsbuildinfo
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Logs
+# ─────────────────────────────────────────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# ─────────────────────────────────────────────────────────────────────────────
+# Datos locales de Supabase
+# ─────────────────────────────────────────────────────────────────────────────
+supabase/.branches/
+supabase/.temp/
