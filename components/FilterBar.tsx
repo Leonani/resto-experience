@@ -55,6 +55,13 @@ export function FilterBar({
   const estado = (searchParams.get("estado") ?? "pendientes") as EstadoFilter;
   const estrellas = (searchParams.get("estrellas") ?? "todas") as EstrellasFilter;
 
+  // Las sedes del select dependen del restaurante elegido: con "Todos los
+  // restaurantes" se ven todas; con un restaurante, solo las suyas.
+  const sedesDelRestaurante =
+    restaurante === TODAS
+      ? locations
+      : locations.filter((location) => location.restaurant_id === restaurante);
+
   function update(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
 
@@ -63,6 +70,32 @@ export function FilterBar({
       params.delete(key);
     } else {
       params.set(key, value);
+    }
+
+    startTransition(() => {
+      router.replace(params.size > 0 ? `/?${params}` : "/", { scroll: false });
+    });
+  }
+
+  // Cambiar de restaurante puede dejar la sede apuntando a una sede que ya no
+  // está en el select. En ese caso se limpia: el filtro no puede quedar en una
+  // sede invisible que combine a 0 resultados en silencio.
+  function updateRestaurante(value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (value === TODAS) {
+      params.delete("restaurante");
+    } else {
+      params.set("restaurante", value);
+    }
+
+    const sedesDelNuevo =
+      value === TODAS
+        ? locations
+        : locations.filter((location) => location.restaurant_id === value);
+    const sedeActual = params.get("sede");
+    if (sedeActual && !sedesDelNuevo.some((l) => l.id === sedeActual)) {
+      params.delete("sede");
     }
 
     startTransition(() => {
@@ -88,7 +121,7 @@ export function FilterBar({
     >
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="filtro-restaurante">Restaurante</Label>
-        <Select value={restaurante} onValueChange={(v) => update("restaurante", v)}>
+        <Select value={restaurante} onValueChange={updateRestaurante}>
           <SelectTrigger id="filtro-restaurante" className="w-56">
             <SelectValue />
           </SelectTrigger>
@@ -111,7 +144,7 @@ export function FilterBar({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={TODAS}>Todas las sedes</SelectItem>
-            {locations.map((location) => (
+            {sedesDelRestaurante.map((location) => (
               <SelectItem key={location.id} value={location.id}>
                 {location.name}
               </SelectItem>

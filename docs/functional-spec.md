@@ -291,6 +291,14 @@ Escenario: Filtrar por restaurante y sede (AND)
   Cuando agrego el filtro sede=loc-1
   Entonces la lista muestra solo reseñas de Palermo
   Y la URL contiene ?restaurante=rest-1&sede=loc-1
+  Y el filtro de Sede muestra solo Palermo y Belgrano (las sedes de rest-1)
+
+Escenario: Cambiar de restaurante limpia una sede incompatible
+  Dado que la URL es /?restaurante=rest-1&sede=loc-1
+  Cuando selecciono el restaurante "Sakura Sushi" (rest-2)
+  Entonces la URL pasa a contener ?restaurante=rest-2 sin sede
+  Y el filtro de Sede muestra solo Centro (la sede de rest-2)
+  Y la lista muestra las reseñas de Centro
 
 Escenario: Filtrar por sede
   Dado que la URL es /

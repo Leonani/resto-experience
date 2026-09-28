@@ -87,6 +87,10 @@ de búsqueda mediante `useSearchParams`.
   `searchParams` en `page.tsx`, no en el cliente
 - Los filtros se combinan en AND: Restaurante deja las reseñas de todas sus sedes y
   se puede afinar con Sede dentro de ese restaurante
+- El select de Sede muestra **solo las sedes del restaurante elegido**: con "Todos los
+  restaurantes" se ven todas; con un restaurante, únicamente las suyas. Cambiar de
+  restaurante limpia la sede si la elegida ya no pertenece al nuevo (nunca un filtro
+  invisible que combine a 0 resultados en silencio)
 
 ### Parámetros
 
