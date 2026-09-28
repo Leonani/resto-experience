@@ -89,9 +89,9 @@ Client Component (`components/RatingsStackedChart.tsx`, recharts vía
 antes de los filtros:
 
 - Una barra por sede con los buckets `r5…rnull` apilados (`stackId`) y la paleta 2.1
-- Las barras ocupan todo el ancho de su slot (`barCategoryGap="0%"`, sin
-  `maxBarSize`): con 3 sedes cada barra es ≈ 1/3 del área del gráfico (el 35% del
-  contenedor que se pidió)
+- Las barras representan el **20% del ancho del contenedor**: `barCategoryGap="40%"`
+  (el gap se mide sobre el slot de la categoría, ~1/3 del área con 3 sedes, y lo
+  que queda de barra son ~20 puntos del total). Sin `maxBarSize`
 - Legend abajo (`ChartLegendContent`) con los labels de la misma config
 - Eje Y con enteros (`allowDecimals={false}`), texto de la sede en X
 - Subtítulo `"N reseñas en M sedes"`, con los mismos números que el header
@@ -118,12 +118,13 @@ todo calculado como props: no hay `useEffect` ni fetch en el cliente.
 `components/RatingDonut.tsx` (recharts `PieChart`, `ChartContainer` de `h-28 w-28`):
 
 - Segmentos = buckets con `count > 0` de esa sede (los de 0 no entran al `Pie`)
+- Cada sector muestra en su interior la CANTIDAD de reseñas con esa calificación:
+  `Pie label={renderPieLabel}` calcula el centro del sector (`midAngle` + radios,
+  `RADIAN`) y pinta el conteo en `fill="#fff"` (recharts hereda el fill del sector
+  si no se lo fuerza, así que el texto se fuerza explícitamente)
 - `innerRadius=34`, `outerRadius=52`, `paddingAngle=2`, `stroke="none"`
-- En el centro, superpuesto con `absolute inset-0`: la **cantidad total** de
-  reseñas de la sede (suma de todos los buckets, `tabular-nums`) + label "reseñas".
-  Ni promedio ni 0.0 inventado: una sede sin reseñas muestra "0" con el anillo
-  vacío, que es un dato real (RN-05 solo gobierna el promedio, que vive en la
-  tarjeta como "Sin datos")
+- Centro VACÍO a propósito: el total de reseñas y el promedio ya viven en la
+  tarjeta; el centro no repite ningún dato
 - Tooltip al pasar el cursor con el label del bucket y su conteo
 
 ### Regla crítica: "Sin datos"
