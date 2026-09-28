@@ -61,7 +61,7 @@ export function RatingsStackedChart({
       </div>
 
       <ChartContainer config={RATING_CHART_CONFIG} className="h-72 w-full">
-        <BarChart data={points} accessibilityLayer>
+        <BarChart data={points} accessibilityLayer maxBarSize={40}>
           <CartesianGrid vertical={false} strokeDasharray="3 3" />
           <XAxis
             dataKey="location"

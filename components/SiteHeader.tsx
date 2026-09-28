@@ -16,36 +16,20 @@ import {
 } from "@/components/ui/dialog";
 
 /**
- * Header de la bandeja: título + subtítulo a la izquierda, sesión a la
- * derecha. El login vive acá (junto al título), no en botones flotantes.
+ * Header de la bandeja: título a la izquierda, sesión a la derecha. El login
+ * vive acá (junto al título), no en botones flotantes.
  *
- * Client Component porque consume `useAuth()`, pero los números llegan ya
- * calculados del Server Component (`page.tsx`).
+ * Client Component porque consume `useAuth()`.
  */
-export function SiteHeader({
-  reviewCount,
-  locationCount,
-  loadError,
-}: {
-  reviewCount: number;
-  locationCount: number;
-  loadError: boolean;
-}) {
+export function SiteHeader() {
   const { status, user, login, logout } = useAuth();
   const [loginOpen, setLoginOpen] = useState(false);
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-          Bandeja de reseñas
-        </h1>
-        <p className="text-sm text-slate-500">
-          {loadError
-            ? "Sin conexión con la base de datos"
-            : `${reviewCount} reseñas en ${locationCount} sedes`}
-        </p>
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+        Bandeja de reseñas
+      </h1>
 
       {status === "autenticado" ? (
         <div
