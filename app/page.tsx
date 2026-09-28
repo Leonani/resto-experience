@@ -99,11 +99,7 @@ export default async function Page({ searchParams }: PageProps<"/">) {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
       <AuthGate>
-        <SiteHeader
-          reviewCount={reviews.length}
-          locationCount={locations.length}
-          loadError={loadError !== null}
-        />
+        <SiteHeader />
 
       {loadError ? (
         <div

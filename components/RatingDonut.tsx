@@ -1,6 +1,6 @@
 "use client";
 
-import { Pie, PieChart } from "recharts";
+import { Cell, Pie, PieChart } from "recharts";
 
 import {
   ChartContainer,
@@ -14,8 +14,9 @@ import {
 
 /**
  * Mini-dona de composición de una sede. Va arriba del promedio dentro de la
- * tarjeta del bento. El centro muestra el promedio de la sede (o "Sin datos"
- * cuando no hay reseñas: RN-05, nunca un 0.0 inventado).
+ * tarjeta del bento. Cada segmento usa el MISMO color que el bar chart
+ * apilado (paleta de `ratings-chart.ts`). El centro muestra el promedio de la
+ * sede (o "Sin datos" cuando no hay reseñas: RN-05, nunca un 0.0 inventado).
  *
  * Sin leyenda a propósito: el detalle con conteos está en el tooltip al pasar
  * el cursor; el bar chart global con leyenda es el que da el detalle completo.
@@ -31,7 +32,10 @@ export function RatingDonut({
 }) {
   const segments = buckets
     .filter((b) => b.count > 0)
-    .map((b) => ({ key: ratingKeyFor(b.rating), count: b.count }));
+    .map((b) => {
+      const key = ratingKeyFor(b.rating);
+      return { key, count: b.count, color: RATING_CHART_CONFIG[key].color };
+    });
 
   return (
     <div className="relative">
@@ -45,7 +49,11 @@ export function RatingDonut({
             outerRadius={52}
             paddingAngle={2}
             stroke="none"
-          />
+          >
+            {segments.map((segment) => (
+              <Cell key={segment.key} fill={segment.color} />
+            ))}
+          </Pie>
           <ChartTooltip content={<ChartTooltipContent />} cursor={false} />
         </PieChart>
       </ChartContainer>
