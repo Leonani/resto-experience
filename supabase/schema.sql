@@ -92,6 +92,30 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 -- ----------------------------------------------------------------------------
+-- 5. Usuario de escritura (sesión)
+-- ----------------------------------------------------------------------------
+-- El usuario/password del login viven en una tabla, NO en el entorno. El hash
+-- es scrypt (N=16384, r=8, p=1, keylen=64) en formato `scrypt$<salt_hex>$<hash_hex>`.
+-- Se genera con `hashPassword()` de lib/auth.ts.
+--
+-- El token `REVIEWS_REPLY_TOKEN` sigue en el entorno: es el secreto de sesión
+-- que el login devuelve y que las escrituras exigen como Bearer.
+--
+-- RLS SIN políticas a propósito: la tabla guarda hashes de contraseña. Ni la
+-- anon key ni `authenticated` pueden leerla; solo la service role (bypasea
+-- RLS) la consulta desde POST /api/auth/login y /api/auth/verify.
+CREATE TABLE IF NOT EXISTS auth_users (
+  username      TEXT PRIMARY KEY,
+  password_hash TEXT NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Seed demo (contraseña 'Password123', SOLO demo — rotar en producción):
+-- insert into auth_users (username, password_hash)
+-- values ('gerente', 'scrypt$f89e...') on conflict (username) do update set password_hash = excluded.password_hash;
+-- Mas en el SQL Editor del dashboard de Supabase.
+
+-- ----------------------------------------------------------------------------
 -- Indices
 -- ----------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_reviews_location    ON reviews(location_id);
@@ -122,6 +146,7 @@ ALTER TABLE restaurants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE locations  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth_users ENABLE ROW LEVEL SECURITY;
 
 -- Única superficie pública: lectura.
 CREATE POLICY "Lectura pública de restaurantes" ON restaurants FOR SELECT USING (true);

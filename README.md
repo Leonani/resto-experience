@@ -39,11 +39,12 @@ curl -X POST http://localhost:3000/api/import \
 | `SUPABASE_SERVICE_ROLE_KEY` | Escrituras. Bypasea RLS | **Nunca** |
 | `IMPORT_TOKEN` | Habilita `POST /api/import` | **Nunca** |
 | `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL` | Proveedor de borradores | **Nunca** |
-| `REVIEWS_LOGIN_USER` | Usuario de la sesión de escritura | **Nunca** |
-| `REVIEWS_LOGIN_PASS` | Contraseña de la sesión de escritura | **Nunca** |
-| `REVIEWS_REPLY_TOKEN` | Token de la sesión de escritura | **Nunca** |
+| `REVIEWS_REPLY_TOKEN` | Token de sesión que entrega el login y exigen las escrituras | **Nunca** |
 
-Generar un `IMPORT_TOKEN`:
+El **usuario y la contraseña no viven en el entorno**: viven en la tabla
+`auth_users` de Supabase, con la contraseña hasheada con **scrypt** (ver
+`supabase/schema.sql`). La tabla sin políticas de RLS: solo la service role
+puede leerla. Generar un `IMPORT_TOKEN`:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -52,29 +53,23 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ### Probar la sesión de escritura (demo)
 
 El listado y los filtros son **públicos** por diseño: cualquiera con la URL puede
-verlos. Escribir (generar borradores y contestar) exige la sesión de un solo
-usuario, configurada en el servidor. Para probarla en local, copiar estos valores
-de demo a `.env.local`:
+verlos. Escribir (generar borradores y contestar) exige la sesión del usuario de
+la bandeja, que vive en la tabla `auth_users` de Supabase:
 
-| Variable | Valor demo |
+| Campo | Valor demo |
 |---|---|
-| `REVIEWS_LOGIN_USER` | `gerente` |
-| `REVIEWS_LOGIN_PASS` | `cambiar-antes-de-produccion` |
-| `REVIEWS_REPLY_TOKEN` | generar uno con el comando de abajo |
+| usuario (`username`) | `gerente` |
+| contraseña | `Password123` |
 
 En la app: botón **"Iniciar sesión"** (abajo a la derecha) → usuario `gerente`,
-contraseña `cambiar-antes-de-produccion`. Sin sesión, la bandeja se ve igual pero
-en modo lectura (las tarjetas no muestran botones de escritura).
+contraseña `Password123`. Sin sesión, la bandeja se ve igual pero en modo lectura
+(las tarjetas no muestran botones de escritura).
 
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-**Advertencia:** son credenciales de demo para que cualquiera pruebe, no para
-producción. Antes de desplegar hay que cambiar la contraseña, generar un token
-nuevo y actualizarlos también en las variables del hosting. Sin las tres variables
-las escrituras quedan cerradas (fail-closed): nadie puede generar borradores ni
-guardar respuestas.
+**Advertencia:** `Password123` es una contraseña de demo para que cualquiera
+pruebe, no para producción. Antes de desplegar hay que cambiarla (re-hashearla
+con `hashPassword()` de `lib/auth.ts` y actualizar `auth_users`) y generar un
+`REVIEWS_REPLY_TOKEN` nuevo. Sin `REVIEWS_REPLY_TOKEN` las escrituras quedan
+cerradas (fail-closed): nadie puede generar borradores ni guardar respuestas.
 
 ---
 

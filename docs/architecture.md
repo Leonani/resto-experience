@@ -28,13 +28,13 @@
 ┌───────────────────────────────────────────────────────────────────────┐
 │  SERVIDOR (Node runtime)                                             │
 │                                                                       │
-│  app/api/auth/login/route.ts      valida credenciales → token         │
+│  app/api/auth/login/route.ts      valida credenciales (auth_users) → token│
 │  app/api/auth/verify/route.ts     valida la sesión (sin auditar)      │
 │  app/api/import/route.ts          token x-import-token (destructivo)  │
 │  app/api/generate-draft/route.ts  Bearer ← REVIEWS_REPLY_TOKEN        │
 │  app/api/save-reply/route.ts      Bearer ← REVIEWS_REPLY_TOKEN        │
 │    │                                                                  │
-│    ├─ isReplyAuthorized() / readAuthConfig()  ← fail-closed           │
+│    ├─ verifyPassword() / readAuthConfig()      ← fail-closed           │
 │    ├─ createClientAdmin()   ← SUPABASE_SERVICE_ROLE_KEY               │
 │    ├─ logAuditEvent()       ← SIEMPRE, éxito y fallo                 │
 │    └─ buildSuccess/ErrorResponse()  ← contrato único                  │
@@ -44,7 +44,7 @@
 ┌───────────────────────────────────────────────────────────────────────┐
 │  SUPABASE (PostgreSQL + RLS)                                         │
 │  restaurants ──< locations ──< reviews                               │
-│  audit_logs (independiente)                                          │
+│  auth_users (hash scrypt) · audit_logs (independiente)               │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -322,13 +322,21 @@ compartible: exige sesión.
 | `POST /api/save-reply` | — | `Authorization: Bearer <token>` |
 | `POST /api/import` | — | `x-import-token` (ya existía) |
 
-### El token se compara en el servidor, no en el cliente
+### Credenciales en la base, token en el entorno
 
-Las tres variables (`REVIEWS_LOGIN_USER`, `REVIEWS_LOGIN_PASS`, `REVIEWS_REPLY_TOKEN`) no
-llevan `NEXT_PUBLIC_`. Por eso `lib/auth.ts` es deliberadamente **sin `server-only`**:
-así se testea con vitest igual que `lib/draft/budget.ts`, y si un Client Component lo
-importara por error, `readAuthConfig` leería variables vacías → `null` → fail-closed. La
-sacrificio de la guarda de bundler se paga con la regla de dependencia de la sección 3.
+Las credenciales del login (usuario + contraseña) viven en la tabla `auth_users` de
+Supabase, con la contraseña hasheada con **scrypt** (`scrypt$salt$hash`, generada por
+`hashPassword()` de `lib/auth.ts`). Se usó scrypt y no SHA-256 para el hash en reposo: un
+hash rápido convierte una contraseña en algo decodificable por fuerza bruta. La tabla no
+tiene políticas de RLS: ni la anon key ni `authenticated` pueden leerla, y no se audita su
+lectura; solo la service role la consulta desde el login y el verify.
+
+`REVIEWS_REPLY_TOKEN` sí vive en el entorno (sin `NEXT_PUBLIC_`): es el secreto de sesión
+que el login devuelve y que las escrituras exigen como Bearer. Por eso `lib/auth.ts` es
+deliberadamente **sin `server-only`**: así se testea con vitest igual que `lib/draft/budget.ts`,
+y si un Client Component lo importara por error, `readAuthConfig` leería una variable vacía →
+`null` → fail-closed. El sacrificio de la guarda de bundler se paga con la regla de
+dependencia de la sección 3.
 
 Flujo:
 
@@ -338,9 +346,9 @@ Flujo:
 2. Sin token (o token inválido) → `anonimo`: el dashboard se muestra completo pero sin
    botones de escritura; `ReviewCard` avisa "Modo lectura". Un botón flotante abre el
    login.
-3. `POST /api/auth/login` valida credenciales con `timingSafeEqual` (comparación a tiempo
-   constante sobre hash SHA-256, para no revelar la referencia por longitud). Éxito →
-   devuelve el token, que el cliente guarda y usa como Bearer.
+3. `POST /api/auth/login` consulta `auth_users` con la service role y verifica la contraseña
+   con `verifyPassword()` (scrypt + `timingSafeEqual`, comparación a tiempo constante). Éxito →
+   devuelve el token del entorno, que el cliente guarda y usa como Bearer.
 4. `save-reply` y `generate-draft` hacen el guard **antes de parsear el body**:
    `readAuthConfig()` + `isReplyAuthorized()`. Rechazo → auditoría con `entity_id: null`
    y 401 con el contrato.
@@ -352,15 +360,17 @@ del login lleva solo el username.
 
 ### Fail-closed
 
-Sin configuración en el servidor, un header ausente o un token inválido, la escritura se
-rechaza. No existe un estado degradado en el que un olvido de entorno deje pasar
-silenciosamente una mutación: la app se vuelve de solo lectura y el login responde 503.
+Sin `REVIEWS_REPLY_TOKEN` en el servidor, un header ausente, un token inválido o un usuario
+sin fila en `auth_users`, la escritura se rechaza. No existe un estado degradado en el que un
+olvido de entorno o de datos deje pasar silenciosamente una mutación: la app se vuelve de
+solo lectura y el login responde 503 (sin token configurado) o 401 (credenciales o usuario
+inexistentes).
 
 ### `localStorage`, no cookie
 
-`REVIEWS_*` no tienen `NEXT_PUBLIC_`, así que el servidor nunca emite el token en el HTML;
-guardarlo en una cookie conllevaría el riesgo de exponerlo. `localStorage` + Bearer por
-request es el camino más simple con el token siempre fuera del render.
+`REVIEWS_REPLY_TOKEN` no tiene `NEXT_PUBLIC_`, así que el servidor nunca emite el token en
+el HTML; guardarlo en una cookie conllevaría el riesgo de exponerlo. `localStorage` + Bearer
+por request es el camino más simple con el token siempre fuera del render.
 
 ---
 

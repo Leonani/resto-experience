@@ -1,4 +1,5 @@
 import { isReplyAuthorized, readAuthConfig } from '@/lib/auth';
+import { createClientAdmin } from '@/lib/supabase/client';
 import {
   buildErrorResponse,
   buildSuccessResponse,
@@ -9,9 +10,10 @@ import {
 /**
  * POST /api/auth/verify
  *
- * Valida el token que el cliente guardó en la sesión. Sin auditoría a
- * propósito: es una verificación de estado, no una mutación, y auditar cada
- * `verify` ensuciaría el log sin agregar traza útil.
+ * Valida el token que el cliente guardó en la sesión y devuelve el nombre del
+ * usuario autenticado (que vive en `auth_users`, no en el entorno). Sin
+ * auditoría a propósito: es una verificación de estado, no una mutación, y
+ * auditar cada `verify` ensuciaría el log sin agregar traza útil.
  */
 export async function POST(request: Request): Promise<Response> {
   const config = readAuthConfig();
@@ -23,9 +25,19 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  const admin = createClientAdmin();
+  const { data, error } = await admin.from('auth_users').select('username').limit(1);
+
+  if (error || !data?.[0]?.username) {
+    return jsonResponse(
+      buildErrorResponse<VerifyResult>('Sesión no válida.'),
+      401,
+    );
+  }
+
   return jsonResponse(
     buildSuccessResponse<VerifyResult>(
-      { user: config.loginUser },
+      { user: data[0].username },
       'Sesión válida.',
     ),
   );

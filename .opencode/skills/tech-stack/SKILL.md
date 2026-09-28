@@ -37,16 +37,19 @@ El status HTTP acompana al contrato: `200` con `success: 'ok'`, `4xx`/`5xx` con
 
 - `SUPABASE_SERVICE_ROLE_KEY` se lee **exclusivamente** en el servidor.
 - La API Key del LLM se lee **exclusivamente** en el servidor, dentro del route handler.
-- `REVIEWS_LOGIN_USER`, `REVIEWS_LOGIN_PASS` y `REVIEWS_REPLY_TOKEN` se leen
-  **exclusivamente** en el servidor. Ninguna lleva `NEXT_PUBLIC_`.
+- `REVIEWS_REPLY_TOKEN` se lee **exclusivamente** en el servidor. No lleva `NEXT_PUBLIC_`.
+- El usuario y la contraseña de la sesión viven en la tabla `auth_users` de Supabase con la
+  contraseña hasheada con **scrypt** (`hashPassword`/`verifyPassword` de `lib/auth.ts`), no
+  en el entorno. La tabla no tiene políticas de RLS: solo la service role la consulta desde
+  los routes `/api/auth/login` y `/api/auth/verify`.
 - Al cliente solo sale lo que lleva prefijo `NEXT_PUBLIC_`.
 - Prohibido el fallback de la service role a la anon key. Una escritura que degrada
   permisos en silencio rompe la trazabilidad sin avisar: si falta la key, fallar.
 - Las escrituras (`save-reply`, `generate-draft`) exigen `Authorization: Bearer <token>`.
   `lib/auth.ts` es puro (sin `server-only`) para testearlo con vitest; la protección viene
-  de que `readAuthConfig` devuelve `null` sin las `REVIEWS_*` (fail-closed) y de que nunca
-  se importa desde un Client Component. Regla de revisión: ningún Client Component importa
-  de `lib/auth`; usar el contexto de `AuthGate` (`useAuth`).
+  de que `readAuthConfig` devuelve `null` sin `REVIEWS_REPLY_TOKEN` (fail-closed) y de que
+  nunca se importa desde un Client Component. Regla de revisión: ningún Client Component
+  importa de `lib/auth`; usar el contexto de `AuthGate` (`useAuth`).
 - Usar la API `taint` de Next.js si un valor de servidor se acerca a un Client Component.
 
 ### 2.3 Trazabilidad
