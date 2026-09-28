@@ -1,9 +1,55 @@
 ---
 name: design-system
-description: Sistema de diseño y reglas de UI/UX para la bandeja de reseñas de la agencia gastronómica. Úsala al crear o modificar SiteHeader (login junto al título), SummaryHeader (bento grid de métricas con mini-dona por sede), RatingsStackedChart (bar chart apilado de sedes), FilterBar (filtros sincronizados con la URL), ReviewCard (borrador IA, edición inline, colores semánticos por estrellas), AuthGate (spinner de verificación, modo lectura), estados de carga, o cualquier componente de la bandeja. Contiene la paleta por estrellas (incluida la de buckets de gráficos), el indicador de borrador IA, la regla de "Sin datos" para sedes sin reseñas y la del modo lectura sin sesión.
+description: Sistema de diseño y reglas de UI/UX para la bandeja de reseñas de la agencia gastronómica. Úsala al crear o modificar el shell (Sidebar izquierda, banner oscuro, KPICards, layout de dos columnas gráficos+feed sobre fondo crema), SiteHeader (título "Reseñas y Métricas" + login junto al título), SummaryHeader (bento grid de métricas con mini-dona por sede), RatingsStackedChart (bar chart apilado de sedes), FilterBar (filtros sincronizados con la URL), ReviewCard (borrador IA, edición inline, colores semánticos por estrellas), AuthGate (spinner de verificación, modo lectura), estados de carga, o cualquier componente de la bandeja. Contiene la paleta por estrellas (incluida la de buckets de gráficos), el indicador de borrador IA, la regla de "Sin datos" para sedes sin reseñas y la del modo lectura sin sesión.
 ---
 
 # Design System — Bandeja de Reseñas
+
+## 0. Shell y layout (dashboard de referencia)
+
+La pantalla tiene el shell de un dashboard de agencia, sobre **fondo crema**
+(`bg-[#f8f6f3]`). El `main` en `app/page.tsx` es un flex: **sidebar fija a la
+izquierda** + columna de contenido centrada (`max-w-7xl`). En móvil la sidebar
+se oculta (`hidden lg:flex`) y todo queda en una columna.
+
+Orden de la columna de contenido (Server Component `page.tsx`):
+
+1. **`SiteHeader`**: ícono `Star` en caja negra `rounded-2xl`, título
+   **"Reseñas y Métricas"** + subtítulo, auth a la derecha (ver §7.2/7.3)
+2. **Banner oscuro** `bg-[#0f172a]` texto blanco `rounded-2xl`: la
+   **"Reseñas · Hoy & Este Mes"** con el badge `{todayCount} hoy`
+   (`data-testid="resenas-hoy"`). Es un conteo REAL de `published_at` del día
+   (UTC, `calculateOverallSummary`): si el dataset es viejo da 0, y 0 es honesto
+3. **`KPICards`**: grid `sm:grid-cols-2 xl:grid-cols-4`. Toda métrica sale de
+   `calculateOverallSummary` (pura, testeada). **Nunca** fabricar comparativos
+   ("+12% vs previo") ni inventar el promedio: sin reseñas calificadas → "Sin
+   datos" (`data-testid="avg-sin-datos"`)
+4. **FilterBar** completo, bajo el banner, en su card blanca `rounded-2xl`
+   (envuelto en `<Suspense>`, ver §5)
+5. **Dos columnas** `lg:grid-cols-[minmax(0,1fr)_400px]`:
+   - Izquierda (`min-w-0 flex flex-col gap-6`): bar chart apilado (§4.0) arriba,
+     bento del `SummaryHeader` (§4.1) abajo
+   - Derecha (feed): card "Feed de reseñas" con contador de visibles + sub
+     "Pendientes primero, por estrellas y fecha" (honestidad sobre el orden), y
+     debajo los `ReviewCard` o el `EmptyState`
+
+Referencia estética común: tarjetas **blancas** `rounded-2xl border-slate-200
+shadow-sm` (incluida la primitiva `ui/card`), `rounded-xl` para elementos
+interiores (pills, bloques de respuesta).
+
+### 0.1 Sidebar (`components/Sidebar.tsx`)
+
+Server Component sin estado. `w-64` pegada con `sticky top-0 h-screen`, `bg-white
+border-r`. Contenido:
+
+- Identidad: avatar `rounded-xl bg-zinc-900` con la inicial del local + "A
+  Experience" / "Resto Experience"
+- Navegación por secciones (`Marketing`, `Operations`, `Analytics`) con ítems
+  `rounded-xl`: `Reviews` es el ítem **activo** (`bg-zinc-900 text-white`),
+  `Reservations` lleva la píldora `bg-slate-100` del diseño de referencia,
+  `Social Media` un badge `Live`. Los ítems no navegan todavía: es maqueta
+- Footer: perfil del local (`bg-slate-50`, avatar circular con inicial y nombre
+  del primer restaurante o "Resto Experience" + "Owner")
 
 ## 1. Jerarquía
 
@@ -85,8 +131,8 @@ cuando el proveedor falló es un bug de honestidad, no de estilo. El cuarto esta
 ### 4.0 Bar chart apilado — "Composición de las reseñas"
 
 Client Component (`components/RatingsStackedChart.tsx`, recharts vía
-`ChartContainer`), una barra por sede segmentada por calificación. Va ARRIBA del bento,
-antes de los filtros:
+`ChartContainer`), una barra por sede segmentada por calificación. Va en la
+columna izquierda, arriba del bento:
 
 - Una barra por sede con los buckets `r5…rnull` apilados (`stackId`) y la paleta 2.1
 - Las barras representan el **20% del ancho del contenedor**: `barCategoryGap="40%"`

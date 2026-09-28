@@ -50,7 +50,7 @@ export function RatingsStackedChart({
   });
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4">
         <h2 className="text-lg font-semibold tracking-tight text-slate-900">
           Composición de las reseñas

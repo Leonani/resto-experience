@@ -21,7 +21,7 @@ export function EmptyState({
   if (hayFiltros) {
     return (
       <div
-        className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center"
+        className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center"
         data-testid="sin-resultados"
       >
         <SearchX className="size-8 text-slate-400" aria-hidden="true" />
@@ -40,7 +40,7 @@ export function EmptyState({
 
   return (
     <div
-      className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center"
+      className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center"
       data-testid="sin-datos-iniciales"
     >
       <Inbox className="size-8 text-slate-400" aria-hidden="true" />

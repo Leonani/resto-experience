@@ -67,7 +67,7 @@ function LocationCard({
   const sinDatos = summary.averageRating === null;
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <header className="mb-4">
         <h2 className="text-base font-semibold text-slate-900">{locationName}</h2>
         <p className="text-xs text-slate-500">{restaurantName}</p>
