@@ -15,20 +15,18 @@ import {
 /**
  * Mini-dona de composición de una sede. Va arriba del promedio dentro de la
  * tarjeta del bento. Cada segmento usa el MISMO color que el bar chart
- * apilado (paleta de `ratings-chart.ts`). El centro muestra el promedio de la
- * sede (o "Sin datos" cuando no hay reseñas: RN-05, nunca un 0.0 inventado).
+ * apilado (paleta de `ratings-chart.ts`). El centro muestra la CANTIDAD total
+ * de reseñas de la sede (suma de todos los buckets), no el promedio. Una sede
+ * sin reseñas muestra "0" con el anillo vacío: es un dato real, no un 0.0
+ * inventado (RN-05 solo gobierna el promedio, que vive en la tarjeta).
  *
  * Sin leyenda a propósito: el detalle con conteos está en el tooltip al pasar
  * el cursor; el bar chart global con leyenda es el que da el detalle completo.
  */
 export function RatingDonut({
   buckets,
-  averageRating,
-  sinDatos,
 }: {
   buckets: { rating: number | null; count: number }[];
-  averageRating: number | null;
-  sinDatos: boolean;
 }) {
   const segments = buckets
     .filter((b) => b.count > 0)
@@ -36,6 +34,8 @@ export function RatingDonut({
       const key = ratingKeyFor(b.rating);
       return { key, count: b.count, color: RATING_CHART_CONFIG[key].color };
     });
+
+  const total = buckets.reduce((sum, b) => sum + b.count, 0);
 
   return (
     <div className="relative">
@@ -58,18 +58,12 @@ export function RatingDonut({
         </PieChart>
       </ChartContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        {sinDatos || averageRating === null ? (
-          <span className="text-xs font-medium text-slate-400">Sin datos</span>
-        ) : (
-          <>
-            <span className="text-xl font-semibold leading-none text-slate-900">
-              {averageRating.toFixed(2)}
-            </span>
-            <span className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">
-              promedio
-            </span>
-          </>
-        )}
+        <span className="text-xl font-semibold leading-none text-slate-900 tabular-nums">
+          {total}
+        </span>
+        <span className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">
+          reseñas
+        </span>
       </div>
     </div>
   );
