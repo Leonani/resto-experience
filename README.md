@@ -39,12 +39,42 @@ curl -X POST http://localhost:3000/api/import \
 | `SUPABASE_SERVICE_ROLE_KEY` | Escrituras. Bypasea RLS | **Nunca** |
 | `IMPORT_TOKEN` | Habilita `POST /api/import` | **Nunca** |
 | `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL` | Proveedor de borradores | **Nunca** |
+| `REVIEWS_LOGIN_USER` | Usuario de la sesión de escritura | **Nunca** |
+| `REVIEWS_LOGIN_PASS` | Contraseña de la sesión de escritura | **Nunca** |
+| `REVIEWS_REPLY_TOKEN` | Token de la sesión de escritura | **Nunca** |
 
 Generar un `IMPORT_TOKEN`:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
+
+### Probar la sesión de escritura (demo)
+
+El listado y los filtros son **públicos** por diseño: cualquiera con la URL puede
+verlos. Escribir (generar borradores y contestar) exige la sesión de un solo
+usuario, configurada en el servidor. Para probarla en local, copiar estos valores
+de demo a `.env.local`:
+
+| Variable | Valor demo |
+|---|---|
+| `REVIEWS_LOGIN_USER` | `gerente` |
+| `REVIEWS_LOGIN_PASS` | `cambiar-antes-de-produccion` |
+| `REVIEWS_REPLY_TOKEN` | generar uno con el comando de abajo |
+
+En la app: botón **"Iniciar sesión"** (abajo a la derecha) → usuario `gerente`,
+contraseña `cambiar-antes-de-produccion`. Sin sesión, la bandeja se ve igual pero
+en modo lectura (las tarjetas no muestran botones de escritura).
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+**Advertencia:** son credenciales de demo para que cualquiera pruebe, no para
+producción. Antes de desplegar hay que cambiar la contraseña, generar un token
+nuevo y actualizarlos también en las variables del hosting. Sin las tres variables
+las escrituras quedan cerradas (fail-closed): nadie puede generar borradores ni
+guardar respuestas.
 
 ---
 
@@ -54,7 +84,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 |---|---|
 | `pnpm dev` | Servidor de desarrollo |
 | `pnpm build` | Build de producción |
-| `pnpm test` | Suite de Vitest (14 tests) |
+| `pnpm test` | Suite de Vitest (56 tests) |
 | `pnpm verify:metrics` | Verifica las métricas contra la tabla de referencia |
 | `pnpm typecheck` | Genera los tipos de ruta de Next y corre `tsc` |
 | `pnpm lint` | ESLint |
@@ -233,6 +263,7 @@ Todo, **incluidos los rechazos**:
 | `SKIP_REVIEW` | Cada registro descartado, con su motivo |
 | `GENERATE_AI_DRAFT` | Cada intento de borrador |
 | `SAVE_REPLY` | Cada intento de guardado |
+| `AUTH_LOGIN` | Cada intento de login, con éxito o sin él |
 
 Auditar solo los éxitos deja una falla grande: una reseña descartada deja el
 mismo estado observable que una que nunca llegó. Sin log, un descarte es
@@ -243,11 +274,8 @@ puede resolver solo.
 
 | Limitación | Por qué | Arreglo |
 |---|---|---|
-| Sin autenticación | Fuera de alcance en v1 | Agregar Supabase Auth y policies por usuario |
-| `GET /` muestra todo a cualquiera con la URL | Consecuencia de no tener auth | Ídem |
-| `POST /api/save-reply` sin auth | Consecuencia de no tener auth | Ídem |
-| Sin rate limit en los POST | Fuera de alcance | Edge middleware o Upstash |
-| Importación en memoria | El fixture pesa ~10 KB | Procesar por lotes a escala |
+| Una sola cuenta: cualquiera que tenga la contraseña escribe | Alcance v1: una demo para probar, no un sistema de usuarios | Supabase Auth con roles por usuario y policies |
+| `GET /` muestra el listado a cualquiera con la URL | Es el alcance elegido: leer es público, escribir no | Policies por usuario en el catálogo |
 
 Ninguna es un descuido: son el alcance acordado. La primera es la que hay que
 cerrar antes de que esto toque producción.
@@ -256,7 +284,7 @@ cerrar antes de que esto toque producción.
 
 ## API
 
-Los tres endpoints son `POST` y devuelven siempre el mismo contrato:
+Los endpoints devuelven siempre el mismo contrato:
 
 ```ts
 { success: 'ok' | 'fail', data: T | null, message: string }
@@ -271,14 +299,20 @@ resto del objeto, que es lo que produce los estados ambiguos.
 | `/api/import` | — | Requiere header `x-import-token`. Idempotente. |
 | `/api/generate-draft` | `{ reviewId }` | **Nunca persiste.** El borrador vive en el cliente. |
 | `/api/save-reply` | `{ reviewId, replyText }` | Rechaza texto vacío. Es el único camino que escribe `reply_text`. |
+| `/api/auth/login` | `{ username, password }` | Devuelve el token de sesión. Audita el intento (nunca la contraseña). |
+| `/api/auth/verify` | — | Valida el Bearer de la sesión. No audita: es una verificación de estado. |
+
+Las escrituras (`/api/generate-draft`, `/api/save-reply`) y `/api/auth/verify`
+exigen el header `Authorization: Bearer <REVIEWS_REPLY_TOKEN>`. Sin él
+responden `401`.
 
 | Situación | HTTP | `success` |
 |---|---|---|
 | Éxito | 200 | `ok` |
 | Body inválido | 400 | `fail` |
-| Token inválido | 401 | `fail` |
+| Credenciales o token inválidos | 401 | `fail` |
 | Recurso inexistente | 404 | `fail` |
-| Falta configuración | 503 | `fail` |
+| Falta configuración (escrituras sin `REVIEWS_*`, import sin `IMPORT_TOKEN`) | 503 | `fail` |
 | Error de Supabase | 500 | `fail` |
 
 Los errores de Supabase van completos a `audit_logs` y al log del servidor. Al
