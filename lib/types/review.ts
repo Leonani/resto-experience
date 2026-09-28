@@ -105,6 +105,7 @@ export type EstrellasFilter = 'todas' | 'alta' | 'media' | 'baja' | 'sin';
 
 export type Filtros = {
   sede: string | null;
+  restaurante: string | null;
   estado: EstadoFilter;
   estrellas: EstrellasFilter;
 };

@@ -19,6 +19,7 @@ import {
   type EstadoFilter,
   type EstrellasFilter,
   type Location,
+  type Restaurant,
 } from "@/lib/types/review";
 
 const TODAS = "__todas__";
@@ -38,11 +39,18 @@ const ESTADO_LABEL: Record<EstadoFilter, string> = {
  *
  * El filtrado real ocurre en el servidor, en `page.tsx`, leyendo `searchParams`.
  */
-export function FilterBar({ locations }: { locations: Location[] }) {
+export function FilterBar({
+  locations,
+  restaurants,
+}: {
+  locations: Location[];
+  restaurants: Restaurant[];
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
+  const restaurante = searchParams.get("restaurante") ?? TODAS;
   const sede = searchParams.get("sede") ?? TODAS;
   const estado = (searchParams.get("estado") ?? "pendientes") as EstadoFilter;
   const estrellas = (searchParams.get("estrellas") ?? "todas") as EstrellasFilter;
@@ -70,6 +78,7 @@ export function FilterBar({ locations }: { locations: Location[] }) {
 
   const hayFiltros =
     searchParams.get("sede") !== null ||
+    searchParams.get("restaurante") !== null ||
     searchParams.get("estado") !== null ||
     searchParams.get("estrellas") !== null;
 
@@ -77,6 +86,23 @@ export function FilterBar({ locations }: { locations: Location[] }) {
     <div
       className={`flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${isPending ? "opacity-60 transition-opacity" : ""}`}
     >
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="filtro-restaurante">Restaurante</Label>
+        <Select value={restaurante} onValueChange={(v) => update("restaurante", v)}>
+          <SelectTrigger id="filtro-restaurante" className="w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODAS}>Todos los restaurantes</SelectItem>
+            {restaurants.map((restaurant) => (
+              <SelectItem key={restaurant.id} value={restaurant.id}>
+                {restaurant.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="filtro-sede">Sede</Label>
         <Select value={sede} onValueChange={(v) => update("sede", v)}>

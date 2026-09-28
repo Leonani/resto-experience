@@ -13,7 +13,7 @@
 │  NAVEGADOR                                                           │
 │                                                                       │
 │  app/page.tsx (Server Component)                                     │
-│    ├─ lee ?sede &estado &estrellas   (searchParams = Promise)         │
+│    ├─ lee ?restaurante &sede &estado &estrellas (searchParams=Promise)│
 │    ├─ lee catalogo + métricas        (Supabase, anon key)             │
 │    └─ pasa datos a <AuthGate>        (Client Component)              │
 │                                                                       │

@@ -76,8 +76,8 @@ en realidad no hay información. Belgrano (`loc-2`) es el caso de prueba permane
 
 ## 5. Sincronización con la URL
 
-Los filtros (Sede, Calificación, Estado) se reflejan en los parámetros de búsqueda
-mediante `useSearchParams`.
+Los filtros (Restaurante, Sede, Calificación, Estado) se reflejan en los parámetros
+de búsqueda mediante `useSearchParams`.
 
 - `FilterBar` es un Client Component (`"use client"`)
 - Como `useSearchParams` fuerza render dinámico, el componente que lo usa debe
@@ -85,11 +85,14 @@ mediante `useSearchParams`.
 - Actualizar un filtro hace `router.replace(...)`, nunca un push que ensucie el historial
 - Los filtros son la fuente de verdad: la lista se filtra **en el servidor** leyendo
   `searchParams` en `page.tsx`, no en el cliente
+- Los filtros se combinan en AND: Restaurante deja las reseñas de todas sus sedes y
+  se puede afinar con Sede dentro de ese restaurante
 
 ### Parámetros
 
 | Param | Valores | Default |
 |---|---|---|
+| `restaurante` | `rest-1` \| `rest-2` | todos |
 | `sede` | `loc-1` \| `loc-2` \| `loc-3` | todas |
 | `estrellas` | `alta` (4–5) \| `media` (3) \| `baja` (1–2) \| `sin` (null) | todas |
 | `estado` | `pendientes` \| `respondidas` | `pendientes` |
