@@ -222,7 +222,8 @@ contestar en nombre del restaurante.
 - Al abrir la app se ve el spinner "Verificando usuario…" mientras se valida el token
   guardado.
 - Sin sesión (o con token inválido), las tarjetas muestran "Modo lectura. Iniciá sesión
-  para generar borradores y contestar." y un botón flotante "Iniciar sesión".
+  para generar borradores y contestar." y hay un botón "Iniciar sesión" en el header,
+  junto al título.
 - `POST /api/save-reply` y `POST /api/generate-draft` sin token responden 401.
 - Sin la configuración en el servidor, la app queda de solo lectura y el login responde
   503 (fail-closed: nunca se deja pasar una escritura por un accidente de entorno).
@@ -548,17 +549,17 @@ Escenario: Abrir la app sin sesión
   Entonces veo el spinner "Verificando usuario…"
   Y el dashboard se muestra completo con las métricas y los filtros
   Y las tarjetas muestran "Modo lectura. Iniciá sesión para generar borradores y contestar."
-  Y hay un botón flotante "Iniciar sesión"
+  Y hay un botón "Iniciar sesión" en el header (junto al título)
 
 Escenario: Login con credenciales correctas
-  Dado el botón flotante "Iniciar sesión"
+  Dado el botón "Iniciar sesión" del header
   Cuando ingreso usuario y contraseña correctos
   Entonces el endpoint responde success = "ok" con el token
   Y se registra un evento AUTH_LOGIN con response_status = "ok"
   Y las tarjetas muestran los botones de responder y generar borrador
 
 Escenario: Login con credenciales incorrectas
-  Dado el botón flotante "Iniciar sesión"
+  Dado el botón "Iniciar sesión" del header
   Cuando ingreso usuario o contraseña incorrectos
   Entonces el endpoint responde success = "fail" con status 401
   Y se registra un evento AUTH_LOGIN con response_status = "fail"

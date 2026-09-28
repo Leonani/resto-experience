@@ -3,10 +3,12 @@ import { Suspense } from "react";
 import { AuthGate } from "@/components/AuthGate";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterBar } from "@/components/FilterBar";
+import { RatingsStackedChart } from "@/components/RatingsStackedChart";
 import { ReviewCard } from "@/components/ReviewCard";
+import { SiteHeader } from "@/components/SiteHeader";
 import { SummaryHeader } from "@/components/SummaryHeader";
 import type { ReviewWithLocation } from "@/components/star-rating";
-import { calculateAllSummaries } from "@/lib/metrics";
+import { calculateAllSummaries, calculateRatingsByLocation } from "@/lib/metrics";
 import { compareReviewsByPriority } from "@/lib/review-order";
 import { createClientPublic } from "@/lib/supabase/server";
 import {
@@ -71,6 +73,16 @@ export default async function Page({ searchParams }: PageProps<"/">) {
     reviews,
   );
 
+  const ratingsByLocation = calculateRatingsByLocation(
+    locations.map((l) => l.id),
+    reviews,
+  );
+
+  const stackedChartData = ratingsByLocation.map((by) => ({
+    locationName: locations.find((l) => l.id === by.locationId)?.name ?? by.locationId,
+    buckets: by.buckets,
+  }));
+
   const visible = applyFilters(reviews, locations, restaurants, {
     sede,
     restaurante,
@@ -87,16 +99,11 @@ export default async function Page({ searchParams }: PageProps<"/">) {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
       <AuthGate>
-        <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-          Bandeja de reseñas
-        </h1>
-        <p className="text-sm text-slate-500">
-          {loadError
-            ? "Sin conexión con la base de datos"
-            : `${reviews.length} reseñas en ${locations.length} sedes`}
-        </p>
-      </header>
+        <SiteHeader
+          reviewCount={reviews.length}
+          locationCount={locations.length}
+          loadError={loadError !== null}
+        />
 
       {loadError ? (
         <div
@@ -112,10 +119,17 @@ export default async function Page({ searchParams }: PageProps<"/">) {
         </div>
       ) : (
         <>
+          <RatingsStackedChart
+            data={stackedChartData}
+            reviewCount={reviews.length}
+            locationCount={locations.length}
+          />
+
           <SummaryHeader
             summaries={summaries}
             locations={locations}
             restaurants={restaurants}
+            ratingsByLocation={ratingsByLocation}
           />
 
           <Suspense

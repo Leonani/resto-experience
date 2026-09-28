@@ -1,24 +1,30 @@
+"use client";
+
 import { Progress } from "@/components/ui/progress";
 import { Star } from "lucide-react";
 
+import { RatingDonut } from "@/components/RatingDonut";
 import { toneClasses, toneForRating } from "@/components/star-rating";
-import type { LocationSummary } from "@/lib/metrics";
+import type { LocationSummary, RatingsByLocation } from "@/lib/metrics";
 import type { Location, Restaurant } from "@/lib/types/review";
 
 /**
- * Bento de métricas: una tarjeta por sede.
+ * Bento de métricas: una tarjeta por sede, con la mini-dona de composición
+ * arriba del promedio.
  *
- * Server Component. Los datos llegan ya calculados desde `page.tsx`, así que
- * no hay `useEffect` ni estado: el HTML inicial ya trae los números.
+ * Client Component por la dona (recharts), pero los datos llegan ya calculados
+ * desde `page.tsx` como props: no hay `useEffect` ni fetch en el cliente.
  */
 export function SummaryHeader({
   summaries,
   locations,
   restaurants,
+  ratingsByLocation,
 }: {
   summaries: LocationSummary[];
   locations: Location[];
   restaurants: Restaurant[];
+  ratingsByLocation: RatingsByLocation[];
 }) {
   return (
     <section aria-label="Resumen por sede" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -27,11 +33,15 @@ export function SummaryHeader({
         const restaurant = restaurants.find(
           (r) => r.id === location?.restaurant_id,
         );
+        const ratingData = ratingsByLocation.find(
+          (by) => by.locationId === summary.locationId,
+        );
 
         return (
           <LocationCard
             key={summary.locationId}
             summary={summary}
+            buckets={ratingData?.buckets ?? []}
             locationName={location?.name ?? summary.locationId}
             restaurantName={restaurant?.name ?? ""}
           />
@@ -43,10 +53,12 @@ export function SummaryHeader({
 
 function LocationCard({
   summary,
+  buckets,
   locationName,
   restaurantName,
 }: {
   summary: LocationSummary;
+  buckets: RatingsByLocation["buckets"];
   locationName: string;
   restaurantName: string;
 }) {
@@ -60,6 +72,14 @@ function LocationCard({
         <h2 className="text-base font-semibold text-slate-900">{locationName}</h2>
         <p className="text-xs text-slate-500">{restaurantName}</p>
       </header>
+
+      <div className="mb-4 flex justify-center">
+        <RatingDonut
+          buckets={buckets}
+          averageRating={summary.averageRating}
+          sinDatos={sinDatos}
+        />
+      </div>
 
       <dl className="grid grid-cols-2 gap-4">
         <div>
