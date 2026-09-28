@@ -34,6 +34,7 @@ export default async function Page({ searchParams }: PageProps<"/">) {
   const params = await searchParams;
 
   const sede = typeof params.sede === "string" ? params.sede : null;
+  const restaurante = typeof params.restaurante === "string" ? params.restaurante : null;
   const estado = (typeof params.estado === "string" ? params.estado : "pendientes") as EstadoFilter;
   const estrellas = (typeof params.estrellas === "string" ? params.estrellas : "todas") as EstrellasFilter;
 
@@ -72,11 +73,16 @@ export default async function Page({ searchParams }: PageProps<"/">) {
 
   const visible = applyFilters(reviews, locations, restaurants, {
     sede,
+    restaurante,
     estado,
     estrellas,
   });
 
-  const hayFiltros = sede !== null || params.estado != null || params.estrellas != null;
+  const hayFiltros =
+    sede !== null ||
+    restaurante !== null ||
+    params.estado != null ||
+    params.estrellas != null;
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
@@ -115,7 +121,7 @@ export default async function Page({ searchParams }: PageProps<"/">) {
           <Suspense
             fallback={<div className="h-[86px] rounded-xl border border-slate-200 bg-white" />}
           >
-            <FilterBar locations={locations} />
+            <FilterBar locations={locations} restaurants={restaurants} />
           </Suspense>
 
           {visible.length === 0 ? (
@@ -144,12 +150,27 @@ function applyFilters(
   reviews: Review[],
   locations: Location[],
   restaurants: Restaurant[],
-  filters: { sede: string | null; estado: EstadoFilter; estrellas: EstrellasFilter },
+  filters: {
+    sede: string | null;
+    restaurante: string | null;
+    estado: EstadoFilter;
+    estrellas: EstrellasFilter;
+  },
 ): ReviewWithLocation[] {
   let result = reviews;
 
   if (filters.sede) {
     result = result.filter((r) => r.location_id === filters.sede);
+  }
+
+  // Una sede pertenece a un restaurante: filtrar por restaurante deja las
+  // reseñas de todas sus sedes, y se combina con el filtro de sede (AND).
+  if (filters.restaurante) {
+    result = result.filter(
+      (r) =>
+        locations.find((l) => l.id === r.location_id)?.restaurant_id ===
+        filters.restaurante,
+    );
   }
 
   if (filters.estado !== "todas") {

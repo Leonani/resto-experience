@@ -280,6 +280,18 @@ Escenario: Reimportación sin duplicados
 > mi colega y que vea exactamente la misma vista.
 
 ```gherkin
+Escenario: Filtrar por restaurante
+  Dado que la URL es /
+  Cuando selecciono el restaurante "La Parrilla del Sur" en el filtro de Restaurante
+  Entonces la URL contiene ?restaurante=rest-1
+  Y la lista muestra solo reseñas de Palermo y Belgrano
+
+Escenario: Filtrar por restaurante y sede (AND)
+  Dado que la URL es /?restaurante=rest-1
+  Cuando agrego el filtro sede=loc-1
+  Entonces la lista muestra solo reseñas de Palermo
+  Y la URL contiene ?restaurante=rest-1&sede=loc-1
+
 Escenario: Filtrar por sede
   Dado que la URL es /
   Cuando selecciono la sede "Palermo" en el filtro de Sede
