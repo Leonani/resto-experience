@@ -61,9 +61,9 @@ la bandeja, que vive en la tabla `auth_users` de Supabase:
 | usuario (`username`) | `gerente` |
 | contraseña | `Password123` |
 
-En la app: botón **"Iniciar sesión"** (abajo a la derecha) → usuario `gerente`,
-contraseña `Password123`. Sin sesión, la bandeja se ve igual pero en modo lectura
-(las tarjetas no muestran botones de escritura).
+En la app: botón **"Iniciar sesión"** (arriba a la derecha, en el header junto al
+título) → usuario `gerente`, contraseña `Password123`. Sin sesión, la bandeja se ve
+igual pero en modo lectura (las tarjetas no muestran botones de escritura).
 
 **Advertencia:** `Password123` es una contraseña de demo para que cualquiera
 pruebe, no para producción. Antes de desplegar hay que cambiarla (re-hashearla

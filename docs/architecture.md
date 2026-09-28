@@ -126,9 +126,14 @@ app/
     generate-draft/route.ts     POST: borrador IA (Bearer)
     save-reply/route.ts         POST: persistir respuesta (Bearer)
 components/
-  AuthGate.tsx                  Client. Sesión + spinner + login y logout.
+  AuthGate.tsx                  Client. Provider de sesión + spinner de verificación.
+  SiteHeader.tsx                Client. Título + login/pastilla de sesión.
+  LoginForm.tsx                 Client. Formulario de login (en Dialog del header).
   FilterBar.tsx                 Client. Escribe en la URL.
-  SummaryHeader.tsx             Server. Bento de métricas.
+  SummaryHeader.tsx             Client. Bento de métricas con mini-dona por sede.
+  RatingsStackedChart.tsx       Client. Bar chart apilado de sedes por calificación.
+  RatingDonut.tsx               Client. Mini-dona de composición de una sede.
+  ratings-chart.ts              Paleta y claves compartidas de los gráficos.
   ReviewCard.tsx                Client. Texto, borrador, guardar.
   EmptyState.tsx                Sin datos / sin resultados.
   ui/                           Componentes shadcn (no tocar)
@@ -344,8 +349,8 @@ Flujo:
    `localStorage` y lo valida contra `POST /api/auth/verify`. Mientras tanto muestra el
    spinner "Verificando usuario…".
 2. Sin token (o token inválido) → `anonimo`: el dashboard se muestra completo pero sin
-   botones de escritura; `ReviewCard` avisa "Modo lectura". Un botón flotante abre el
-   login.
+   botones de escritura; `ReviewCard` avisa "Modo lectura". El botón de login está en el
+   header (`SiteHeader`), junto al título.
 3. `POST /api/auth/login` consulta `auth_users` con la service role y verifica la contraseña
    con `verifyPassword()` (scrypt + `timingSafeEqual`, comparación a tiempo constante). Éxito →
    devuelve el token del entorno, que el cliente guarda y usa como Bearer.

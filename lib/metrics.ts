@@ -82,3 +82,60 @@ export function calculateAllSummaries(
 ): LocationSummary[] {
   return locationIds.map((id) => calculateLocationSummary(id, reviews));
 }
+
+// ---------------------------------------------------------------------------
+// Distribución de calificaciones (alimenta la dona de cada tarjeta y el bar
+// chart apilado de la bandeja)
+// ---------------------------------------------------------------------------
+
+/**
+ * Buckets canónicos del promedio, en el orden en que se muestran en la dona y
+ * en la leyenda. `rating: null` es un bucket obligatorio (RN-03): esas reseñas
+ * existen, se responden y no entran al promedio, pero sí se ven en la UI.
+ */
+export const RATING_BUCKETS: ReadonlyArray<{ rating: number | null; label: string }> = [
+  { rating: 5, label: "5 estrellas" },
+  { rating: 4, label: "4 estrellas" },
+  { rating: 3, label: "3 estrellas" },
+  { rating: 2, label: "2 estrellas" },
+  { rating: 1, label: "1 estrella" },
+  { rating: null, label: "Sin calificación" },
+];
+
+export type RatingBucket = {
+  rating: number | null;
+  label: string;
+  count: number;
+};
+
+export type RatingsByLocation = {
+  locationId: string;
+  buckets: RatingBucket[];
+};
+
+/** Conteo por bucket de calificación para un conjunto de reseñas. */
+export function calculateRatingDistribution(reviews: Review[]): RatingBucket[] {
+  return RATING_BUCKETS.map(({ rating, label }) => ({
+    rating,
+    label,
+    count: reviews.filter((r) => r.rating === rating).length,
+  }));
+}
+
+/**
+ * Distribución por sede. Es la MISMA fuente para las mini-donas de las
+ * tarjetas y para el bar chart apilado: si un número cambia, cambia en ambos
+ * lados. La suma de los buckets de una sede coincide con `totalReviews` de su
+ * `LocationSummary` (toda reseña cae en exactamente un bucket).
+ */
+export function calculateRatingsByLocation(
+  locationIds: string[],
+  reviews: Review[],
+): RatingsByLocation[] {
+  return locationIds.map((locationId) => ({
+    locationId,
+    buckets: calculateRatingDistribution(
+      reviews.filter((r) => r.location_id === locationId),
+    ),
+  }));
+}

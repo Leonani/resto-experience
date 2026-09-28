@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateLocationSummary } from "@/lib/metrics";
+import {
+  calculateLocationSummary,
+  calculateRatingDistribution,
+  calculateRatingsByLocation,
+  RATING_BUCKETS,
+} from "@/lib/metrics";
 import { isResponded, type Review } from "@/lib/types/review";
 
 /**
@@ -156,5 +161,66 @@ describe("isResponded — respuesta vacía es pendiente", () => {
     expect(isResponded({ reply_text: "" })).toBe(false);
     expect(isResponded({ reply_text: "   " })).toBe(false);
     expect(isResponded({ reply_text: "Gracias" })).toBe(true);
+  });
+});
+
+describe("Distribución de calificaciones", () => {
+  const reviews: Review[] = [
+    review({ id: "a", rating: 5 }),
+    review({ id: "b", rating: 5 }),
+    review({ id: "c", rating: 4 }),
+    review({ id: "d", rating: 3 }),
+    review({ id: "e", rating: 1 }),
+    review({ id: "f", rating: null }),
+  ];
+
+  it("cuenta cada valor en su bucket, en el orden canónico", () => {
+    const dist = calculateRatingDistribution(reviews);
+    const byRating = new Map(dist.map((b) => [b.rating, b.count]));
+
+    expect(byRating.get(5)).toBe(2);
+    expect(byRating.get(4)).toBe(1);
+    expect(byRating.get(3)).toBe(1);
+    expect(byRating.get(2)).toBe(0);
+    expect(byRating.get(1)).toBe(1);
+    expect(byRating.get(null)).toBe(1);
+  });
+
+  it("cada bucket cae en exactamente una categoría (suma = total)", () => {
+    const dist = calculateRatingDistribution(reviews);
+    const total = dist.reduce((sum, b) => sum + b.count, 0);
+
+    expect(total).toBe(reviews.length);
+  });
+
+  it("existe el orden 5, 4, 3, 2, 1, sin calificación", () => {
+    expect(RATING_BUCKETS.map((b) => b.rating)).toEqual([5, 4, 3, 2, 1, null]);
+  });
+
+  it("sede sin reseñas devuelve todos los buckets en 0", () => {
+    const dist = calculateRatingDistribution([]);
+
+    expect(dist.every((b) => b.count === 0)).toBe(true);
+  });
+
+  it("calculateRatingsByLocation aísla por sede (misma fuente que las donas y barras)", () => {
+    const data = calculateRatingsByLocation(["loc-1", "loc-2"], [
+      review({ id: "a", location_id: "loc-1", rating: 5 }),
+      review({ id: "b", location_id: "loc-2", rating: 3 }),
+      review({ id: "c", location_id: "loc-1", rating: null }),
+    ]);
+
+    const palermo = data.find((d) => d.locationId === "loc-1")!;
+    const belgrano = data.find((d) => d.locationId === "loc-2")!;
+
+    const count = (buckets: typeof palermo.buckets, rating: number | null) =>
+      buckets.find((b) => b.rating === rating)!.count;
+
+    expect(count(palermo.buckets, 5)).toBe(1);
+    expect(count(palermo.buckets, null)).toBe(1);
+    expect(palermo.buckets.reduce((s, b) => s + b.count, 0)).toBe(2);
+
+    expect(count(belgrano.buckets, 3)).toBe(1);
+    expect(belgrano.buckets.reduce((s, b) => s + b.count, 0)).toBe(1);
   });
 });

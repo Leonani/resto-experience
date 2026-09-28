@@ -1,38 +1,31 @@
 "use client";
 
-import { Loader2, LogOut, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import type { ApiResponse, LoginResult, VerifyResult } from "@/lib/types/api";
 
 /**
- * Sesión de escritura (auth UI).
+ * Sesión de escritura (provider + verificación).
  *
  * El listado y los filtros son públicos por diseño (se puede pasar la URL a
- * otra persona). Solo contestar exige sesión, así que la pantalla de
- * verificación cubre la interfaz mientras se valida el token guardado y,
- * terminada la verificación, se muestra el dashboard igual en ambos casos.
+ * otra persona). Solo contestar exige sesión, así que durante la verificación
+ * se cubre la interfaz con el spinner "Verificando usuario…" y, terminada, se
+ * muestra el dashboard igual en ambos casos.
+ *
+ * Cuándo se muestra la UI de login (botón/panel/pastilla) lo decide
+ * `SiteHeader`, que vive DENTRO de este provider y consume `useAuth()`. Acá no
+ * hay botones flotantes: el login está en el header junto al título.
  *
  * Estados:
  *   - `verificando`: spinner "Verificando usuario…" mientras se valida el token
  *     contra `/api/auth/verify`.
- *   - `anonimo`: dashboard en modo lectura + botón flotante "Iniciar sesión".
- *   - `autenticado`: escrituras habilitadas + pastilla con el usuario y "Salir".
+ *   - `anonimo`: dashboard en modo lectura; `SiteHeader` muestra "Iniciar sesión".
+ *   - `autenticado`: escrituras habilitadas; `SiteHeader` muestra la pastilla.
  *
  * El token vive en `localStorage` (`reviews_reply_token`). No está en una
- * cookie a propósito: `REVIEWS_*` no llevan `NEXT_PUBLIC_`, así que el servidor
- * nunca expone el token de respuesta en el HTML.
+ * cookie a propósito: `REVIEWS_REPLY_TOKEN` no lleva `NEXT_PUBLIC_`, así que el
+ * servidor nunca expone el token de respuesta en el HTML.
  */
 
 const TOKEN_KEY = "reviews_reply_token";
@@ -53,7 +46,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("verificando");
   const [user, setUser] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [loginOpen, setLoginOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -144,115 +136,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <p className="text-sm text-slate-600">Verificando usuario…</p>
         </div>
       )}
-
-      {status === "anonimo" && (
-        <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
-          <DialogTrigger asChild>
-            <Button
-              className="fixed right-4 bottom-4 z-40 shadow-lg"
-              variant="outline"
-              data-testid="login-trigger"
-            >
-              <Sparkles className="size-4" aria-hidden="true" />
-              Iniciar sesión
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Iniciar sesión</DialogTitle>
-              <DialogDescription>
-                El listado y los filtros son públicos. La sesión habilita generar
-                borradores y contestar reseñas.
-              </DialogDescription>
-            </DialogHeader>
-            <LoginForm
-              onSuccess={() => setLoginOpen(false)}
-              login={login}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {status === "autenticado" && (
-        <div
-          className="fixed right-4 bottom-4 z-40 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 shadow-lg"
-          data-testid="session-pill"
-        >
-          <span className="text-sm text-slate-600">Sesión: {user}</span>
-          <Button variant="ghost" size="sm" onClick={logout}>
-            <LogOut className="size-4" aria-hidden="true" />
-            Salir
-          </Button>
-        </div>
-      )}
     </AuthContext.Provider>
-  );
-}
-
-function LoginForm({
-  login,
-  onSuccess,
-}: {
-  login: (username: string, password: string) => Promise<void>;
-  onSuccess: () => void;
-}) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setError(null);
-    setEnviando(true);
-
-    try {
-      await login(username, password);
-      onSuccess();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo iniciar sesión.");
-    } finally {
-      setEnviando(false);
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="login-username">Usuario</Label>
-        <Input
-          id="login-username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
-          autoFocus
-        />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="login-password">Contraseña</Label>
-        <Input
-          id="login-password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-        />
-      </div>
-
-      {error && (
-        <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
-          {error}
-        </p>
-      )}
-
-      <Button type="submit" disabled={enviando} data-testid="login-submit">
-        {enviando ? (
-          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-        ) : null}
-        {enviando ? "Iniciando…" : "Iniciar sesión"}
-      </Button>
-    </form>
   );
 }
 

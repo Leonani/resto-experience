@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: Sistema de diseño y reglas de UI/UX para la bandeja de reseñas de la agencia gastronómica. Úsala al crear o modificar SummaryHeader (bento grid de métricas), FilterBar (filtros sincronizados con la URL), ReviewCard (borrador IA, edición inline, colores semánticos por estrellas), AuthGate (spinner de verificación, login, modo lectura), estados de carga, o cualquier componente de la bandeja. Contiene la paleta por estrellas, el indicador de borrador IA, la regla de "Sin datos" para sedes sin reseñas y la del modo lectura sin sesión.
+description: Sistema de diseño y reglas de UI/UX para la bandeja de reseñas de la agencia gastronómica. Úsala al crear o modificar SiteHeader (login junto al título), SummaryHeader (bento grid de métricas con mini-dona por sede), RatingsStackedChart (bar chart apilado de sedes), FilterBar (filtros sincronizados con la URL), ReviewCard (borrador IA, edición inline, colores semánticos por estrellas), AuthGate (spinner de verificación, modo lectura), estados de carga, o cualquier componente de la bandeja. Contiene la paleta por estrellas (incluida la de buckets de gráficos), el indicador de borrador IA, la regla de "Sin datos" para sedes sin reseñas y la del modo lectura sin sesión.
 ---
 
 # Design System — Bandeja de Reseñas
@@ -38,6 +38,28 @@ pero no se pueden clasificar como buen o mal servicio. Sin esta categoría no ha
 ubicarlas, y el que las clasifique por defecto las mete en "mal servicio" cuando en
 realidad el cliente simplemente no interfirió con la calificación.
 
+### 2.1 Paleta de buckets para gráficos
+
+La composición por calificación (donas y bar chart apilado) usa un bucket por valor
+individual, en el orden canónico `5, 4, 3, 2, 1, null`. Colores **fijos oklch** (no
+`var(--color-*)`), definidos una sola vez en `components/ratings-chart.ts`
+(`RATING_CHART_CONFIG` / `RATING_KEYS`):
+
+| Bucket | Clave | Color |
+|---|---|---|
+| 5 estrellas | `r5` | `oklch(0.596 0.145 163.225)` (emerald-600) |
+| 4 estrellas | `r4` | `oklch(0.765 0.177 163.223)` (emerald-400) |
+| 3 estrellas | `r3` | `oklch(0.769 0.188 70.08)` (amber-500) |
+| 2 estrellas | `r2` | `oklch(0.712 0.209 9.889)` (rose-400) |
+| 1 estrella | `r1` | `oklch(0.586 0.253 17.585)` (rose-600) |
+| Sin calificación (`null`) | `rnull` | `oklch(0.704 0.04 256.788)` (slate-400) |
+
+La suma de los buckets de una sede coincide con `totalReviews` de su `LocationSummary`
+(toda reseña cae en exactamente un bucket, RN-03). Dona y barra se alimentan de la MISMA
+fuente (`calculateRatingsByLocation` en `lib/metrics.ts`): si un número cambia, cambia en
+ambos lados. Si una sede no tiene reseñas, sus buckets quedan en 0 y se muestra "Sin datos",
+nunca un 0.0 inventado.
+
 ## 3. Indicador visual de borrador IA
 
 Todo borrador generado que **no ha sido guardado** lleva:
@@ -58,13 +80,46 @@ Regla: nunca afirmar que el texto vino de la IA si salió del fallback local. Fi
 cuando el proveedor falló es un bug de honestidad, no de estilo. El cuarto estado
 (presupuesto) también sale del template local: su etiqueta dice "Borrador local", no "Por IA".
 
-## 4. Tarjetas Bento de resumen por sede
+## 4. Bar chart apilado (global) y tarjetas Bento
+
+### 4.0 Bar chart apilado — "Composición de las reseñas"
+
+Client Component (`components/RatingsStackedChart.tsx`, recharts vía
+`ChartContainer`), una barra por sede segmentada por calificación. Va ARRIBA del bento,
+antes de los filtros:
+
+- Una barra por sede con los buckets `r5…rnull` apilados (`stackId`) y la paleta 2.1
+- Legend abajo (`ChartLegendContent`) con los labels de la misma config
+- Eje Y con enteros (`allowDecimals={false}`), texto de la sede en X
+- Subtítulo `"N reseñas en M sedes"`, con los mismos números que el header
+- Los datos llegan calculados como props desde `page.tsx` (client sin fetch)
+
+Regla de honestidad: si el dataset no tiene esas reseñas, la barra es cero; nunca se
+adorna con datos falsos. Sin leyenda propia por tarjeta: el detalle está en el tooltip
+de la dona y en este gráfico global.
+
+### 4.1 Tarjetas Bento de resumen por sede
 
 Una tarjeta por sede, con tres datos:
 
+- **Mini-dona de composición** arriba del promedio
 - **Total de reseñas**
 - **Promedio** con ícono de estrella
 - **% Respondido** con barra de progreso (`components/ui/progress.tsx`)
+
+`SummaryHeader.tsx` es ahora **Client Component** (por la dona, recharts) pero recibe
+todo calculado como props: no hay `useEffect` ni fetch en el cliente.
+
+### 4.2 Mini-dona por sede
+
+`components/RatingDonut.tsx` (recharts `PieChart`, `ChartContainer` de `h-28 w-28`):
+
+- Segmentos = buckets con `count > 0` de esa sede (los de 0 no entran al `Pie`)
+- `innerRadius=34`, `outerRadius=52`, `paddingAngle=2`, `stroke="none"`
+- En el centro, superpuesto con `absolute inset-0`:
+  - Sede con promedio: el promedio `toFixed(2)` + label "promedio"
+  - Sin reseñas: **"Sin datos"** (nunca `0.00`)
+- Tooltip al pasar el cursor con el label del bucket y su conteo
 
 ### Regla crítica: "Sin datos"
 
@@ -131,19 +186,21 @@ sesión. Solo escribir lo exige. `AuthGate.tsx` (Client Component envuelve el `m
   Responder, Editar, Guardar, Cancelar). En su lugar, el `footer` muestra un texto
   `text-xs text-slate-400`:
   **"Modo lectura. Iniciá sesión para generar borradores y contestar."**
-- Botón flotante `fixed right-4 bottom-4 z-40` variant `outline` con ícono `Sparkles` y
-  label **"Iniciar sesión"**. Abre un `Dialog` con:
+- El login vive en `SiteHeader.tsx` (derecha del header, junto al título): botón
+  "Iniciar sesión" (variant `outline`, ícono `Sparkles`, `data-testid="login-trigger"`,
+  sombra) que abre un `Dialog` con:
   - Título **"Iniciar sesión"**
   - Description **"El listado y los filtros son públicos. La sesión habilita generar
     borradores y contestar reseñas."**
   - Campos `Input` Usuario y Contraseña (`Label` + `autoComplete` respectivo)
   - Enviar deshabilitado mientras carga, con `Loader2` + "Iniciando…"
   - Error inline `bg-rose-50 text-rose-700` con `role="alert"`
+  - El `LoginForm` es un componente aparte (`components/LoginForm.tsx`)
 
 ### 7.3 Sesión iniciada
 
-- Pastilla flotante `fixed right-4 bottom-4 z-40` (borde `border-slate-200`, fondo blanco,
-  sombra): **"Sesión: {user}"** + botón ghost "Salir" (ícono `LogOut`).
+- Pastilla en el header (`data-testid="session-pill"`, borde `border-slate-200`, fondo
+  blanco, sombra): **"Sesión: {user}"** + botón ghost "Salir" (ícono `LogOut`).
 - Los botones de escritura vuelven a aparecer en cada `ReviewCard`.
 
 Reglas de honestidad heredadas del resto del sistema: un 401 de `save-reply` o
