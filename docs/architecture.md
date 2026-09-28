@@ -18,9 +18,12 @@
 │    └─ pasa datos a <AuthGate>        (Client Component)              │
 │                                                                       │
 │  <AuthGate>        spinner "Verificando usuario…" + sesión en contexto│
+│  <Sidebar>         shell de navegación (Server, sin estado)           │
+│  <SiteHeader>      título + login/pastilla de sesión                  │
+│  <KPICards>        KPIs globales (overall summary ya calculado)       │
 │  <FilterBar> ──useRouter──> push() ──> la URL es el estado            │
-│  <SummaryHeader>      métricas ya calculadas en el servidor           │
-│  <ReviewCard>         uncontrolled + fetch a /api/*                   │
+│  <RatingsStackedChart> + <SummaryHeader>  columna izquierda           │
+│  <ReviewCard>         feed derecho, uncontrolled + fetch a /api/*     │
 └───────────────────────────────────────────────────────────────────────┘
             │ POST (solo mutaciones)
             │ Authorization: Bearer <token> (si hay sesión)
@@ -127,7 +130,9 @@ app/
     save-reply/route.ts         POST: persistir respuesta (Bearer)
 components/
   AuthGate.tsx                  Client. Provider de sesión + spinner de verificación.
-  SiteHeader.tsx                Client. Título + login/pastilla de sesión.
+  Sidebar.tsx                   Server. Navegación del shell (sin estado, maqueta).
+  SiteHeader.tsx                Client. Título "Reseñas y Métricas" + login/pastilla.
+  KPICards.tsx                  Server. Fila de 4 KPIs globales (overall summary).
   LoginForm.tsx                 Client. Formulario de login (en Dialog del header).
   FilterBar.tsx                 Client. Escribe en la URL.
   SummaryHeader.tsx             Client. Bento de métricas con mini-dona por sede.
@@ -147,7 +152,7 @@ lib/
   audit.ts                      logAuditEvent()
   import/reviews.ts             dedup → validar FK → upsert
   draft/provider.ts             DraftProvider + fallback local
-  metrics.ts                    calculateLocationSummary() — pura
+  metrics.ts                    calculateLocationSummary() + calculateOverallSummary() — puras
 data/reviews.json               fixture de entrada
 supabase/schema.sql             DDL
 scripts/verify-metrics.ts       gate contra la tabla de referencia

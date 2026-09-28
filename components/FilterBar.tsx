@@ -117,7 +117,7 @@ export function FilterBar({
 
   return (
     <div
-      className={`flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${isPending ? "opacity-60 transition-opacity" : ""}`}
+      className={`flex flex-wrap items-end gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${isPending ? "opacity-60 transition-opacity" : ""}`}
     >
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="filtro-restaurante">Restaurante</Label>

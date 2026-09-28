@@ -139,3 +139,62 @@ export function calculateRatingsByLocation(
     ),
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Resumen global (alimenta los KPIs del tope del panel)
+// ---------------------------------------------------------------------------
+
+export type OverallSummary = {
+  totalReviews: number;
+  ratedReviews: number;
+  /** Promedio general, `null` si no hay ninguna calificada (RN-05). */
+  averageRating: number | null;
+  repliedCount: number;
+  /** 0..100 con 1 decimal, sobre el total de reseñas. */
+  replyPercentage: number;
+  pendingCount: number;
+  /** 0..100 con 1 decimal, sobre el total de reseñas. */
+  pendingPercentage: number;
+  /** Reseñas publicadas el día de `now` (mismo día UTC). Alimenta el badge "hoy". */
+  todayCount: number;
+};
+
+/**
+ * Resumen global del panel. Pura a propósito, igual que el resto de `metrics`:
+ * los KPIs salen de una sola función testable, no de SQL diseminado en cada
+ * tarjeta.
+ *
+ * `pendingCount` es el complemento de `repliedCount` sobre el total: una
+ * reseña pendiente es una que no fue respondida (RN-06), no una que nadie
+ * importó.
+ *
+ * "Hoy" se compara en UTC con `now.toISOString()` para que el test sea
+ * determinista sin importar la zona horaria de la máquina.
+ */
+export function calculateOverallSummary(
+  reviews: Review[],
+  now: Date = new Date(),
+): OverallSummary {
+  const rated = reviews.filter((r) => r.rating !== null);
+  const repliedCount = reviews.filter(isResponded).length;
+  const pendingCount = reviews.length - repliedCount;
+
+  const startOfUtcDay = new Date(now.toISOString().slice(0, 10) + "T00:00:00.000Z");
+  const todayCount = reviews.filter(
+    (r) => new Date(r.published_at).getTime() >= startOfUtcDay.getTime(),
+  ).length;
+
+  return {
+    totalReviews: reviews.length,
+    ratedReviews: rated.length,
+    averageRating:
+      rated.length === 0
+        ? null
+        : round2(rated.reduce((sum, r) => sum + (r.rating as number), 0) / rated.length),
+    repliedCount,
+    replyPercentage: reviews.length === 0 ? 0 : round1((repliedCount / reviews.length) * 100),
+    pendingCount,
+    pendingPercentage: reviews.length === 0 ? 0 : round1((pendingCount / reviews.length) * 100),
+    todayCount,
+  };
+}

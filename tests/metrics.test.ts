@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateLocationSummary,
+  calculateOverallSummary,
   calculateRatingDistribution,
   calculateRatingsByLocation,
   RATING_BUCKETS,
@@ -222,5 +223,51 @@ describe("Distribución de calificaciones", () => {
 
     expect(count(belgrano.buckets, 3)).toBe(1);
     expect(belgrano.buckets.reduce((s, b) => s + b.count, 0)).toBe(1);
+  });
+});
+
+describe("Resumen global (KPIs del panel)", () => {
+  it("con dataset mixto: total, promedio, % respondido y pendientes consistentes", () => {
+    const reviews: Review[] = [
+      review({ id: "1", rating: 5 }),
+      review({ id: "2", rating: 4 }),
+      review({ id: "3", rating: null }),
+      review({ id: "4", rating: 3, reply_text: "Gracias", replied_at: "2026-09-11T10:00:00Z" }),
+      review({ id: "5", rating: 1 }),
+    ];
+    // Pendientes = respondidas (1) vs total (5) => 4. Total = 5, prom = (5+4+3+1)/4 = 3.25.
+    const overall = calculateOverallSummary(reviews);
+
+    expect(overall.totalReviews).toBe(5);
+    expect(overall.ratedReviews).toBe(4);
+    expect(overall.averageRating).toBe(3.25);
+    expect(overall.repliedCount).toBe(1);
+    expect(overall.replyPercentage).toBe(20);
+    expect(overall.pendingCount).toBe(4);
+    expect(overall.pendingPercentage).toBe(80);
+  });
+
+  it("sin reseñas: total 0, promedio null (nunca 0.0) y hoy 0", () => {
+    const overall = calculateOverallSummary([], new Date("2026-09-28T12:00:00Z"));
+
+    expect(overall.totalReviews).toBe(0);
+    expect(overall.averageRating).toBeNull();
+    expect(overall.replyPercentage).toBe(0);
+    expect(overall.pendingCount).toBe(0);
+    expect(overall.todayCount).toBe(0);
+  });
+
+  it("cuenta solo lo publicado el mismo día que `now`, en el límite UTC", () => {
+    const overall = calculateOverallSummary(
+      [
+        review({ id: "a", published_at: "2026-09-28T15:00:00.000Z" }),
+        review({ id: "b", published_at: "2026-09-28T23:59:59.999Z" }),
+        review({ id: "c", published_at: "2026-09-28T00:00:00.000Z" }),
+        review({ id: "d", published_at: "2026-09-27T23:59:59.999Z" }),
+      ],
+      new Date("2026-09-28T12:00:00.000Z"),
+    );
+
+    expect(overall.todayCount).toBe(3);
   });
 });

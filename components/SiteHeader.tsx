@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Sparkles } from "lucide-react";
+import { LogOut, Sparkles, Star } from "lucide-react";
 import { useState } from "react";
 
 import { useAuth } from "@/components/AuthGate";
@@ -27,13 +27,23 @@ export function SiteHeader() {
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-        Bandeja de reseñas
-      </h1>
+      <div className="flex items-center gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-zinc-900 text-white shadow-sm">
+          <Star className="size-5" aria-hidden="true" />
+        </span>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+            Reseñas y Métricas
+          </h1>
+          <p className="text-sm text-slate-500">
+            Promedios, respuestas y borradores por sede
+          </p>
+        </div>
+      </div>
 
       {status === "autenticado" ? (
         <div
-          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 shadow-sm"
+          className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 shadow-sm"
           data-testid="session-pill"
         >
           <span className="text-sm text-slate-600">Sesión: {user}</span>
