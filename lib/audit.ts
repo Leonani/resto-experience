@@ -28,6 +28,29 @@ export function safeJson(value: unknown): string | null {
   }
 }
 
+/**
+ * Convierte un valor para insertar en una columna `jsonb`: pasa por
+ * `safeJson` para limpiar `undefined` y valores circulares, y luego vuelve a
+ * parsear a un objeto real.
+ *
+ * Por qué el parse: si se inserta el *string* JSON en una columna `jsonb`,
+ * PostgreSQL lo guarda como un string jsonb (doble encoding) y ningún `->>` se
+ * vuelve a poder usar sobre él — `jsonb_typeof` devuelve `'string'` y las
+ * consultas por campo devuelven `null`. Las filas históricas escritas por el
+ * vetusto `safeJson` directo conservan ese defecto; se normalizaron en la base
+ * con un `UPDATE` (jsonb string → objeto) cuando se corrigió esto.
+ */
+export function cleanForJsonb(value: unknown): unknown {
+  const serialized = safeJson(value);
+  if (serialized === null) return null;
+
+  try {
+    return JSON.parse(serialized);
+  } catch {
+    return null;
+  }
+}
+
 type LogAuditEventInput = Omit<
   AuditLogEntry,
   'method' | 'request_payload' | 'response_data'
@@ -57,9 +80,9 @@ export async function logAuditEvent(entry: LogAuditEventInput): Promise<void> {
       entity_name: entry.entity_name,
       entity_id: entry.entity_id,
       method: entry.method,
-      request_payload: safeJson(entry.request_payload),
+      request_payload: cleanForJsonb(entry.request_payload),
       response_status: entry.response_status,
-      response_data: safeJson(entry.response_data),
+      response_data: cleanForJsonb(entry.response_data),
       error_message: entry.error_message,
     });
 

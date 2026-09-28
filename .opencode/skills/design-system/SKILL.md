@@ -47,12 +47,16 @@ Todo borrador generado que **no ha sido guardado** lleva:
   - IA real: `Borrador generado por IA`
   - Sin `LLM_API_KEY` (template local): `Borrador local (sin IA configurada)`
   - IA configurada que falló: `Borrador local (la IA falló; revisalo antes de publicar)`,
-    más una alerta `Fallo borrador IA` (rol `alert`)
+    más una alerta `Fallo borrador IA` (rol `alert`, rosa)
+  - IA cortada por presupuesto: `Borrador local (límite de generación IA alcanzado)`,
+    con nota ámbar (`role="status"`, `amber`) con el `budgetReason`. Es un límite,
+    no un error: ámbar, nunca rojo
 - Distinción estricta entre borrador y respuesta persistida. Un borrador sin guardar
   **nunca** se escribe en `reply_text` hasta que el usuario confirma.
 
 Regla: nunca afirmar que el texto vino de la IA si salió del fallback local. Fingir éxito
-cuando el proveedor falló es un bug de honestidad, no de estilo.
+cuando el proveedor falló es un bug de honestidad, no de estilo. El cuarto estado
+(presupuesto) también sale del template local: su etiqueta dice "Borrador local", no "Por IA".
 
 ## 4. Tarjetas Bento de resumen por sede
 

@@ -1,5 +1,11 @@
 import { logAuditEvent } from '@/lib/audit';
 import {
+  checkAiBudget,
+  countRealAiAttempts,
+  readAiBudget,
+  type AiAttemptClient,
+} from '@/lib/draft/budget';
+import {
   DraftProviderError,
   readLlmConfig,
   selectProvider,
@@ -110,9 +116,31 @@ export async function POST(request: Request): Promise<Response> {
   // `readLlmConfig` decide entre IA real y template según el entorno. Si la IA
   // está configurada pero falla, se cae al template SIN ocultar el problema:
   // `aiError` viaja hasta la UI para que avise.
-  const provider = selectProvider(readLlmConfig());
-  let result: DraftOutput;
+  const llmConfig = readLlmConfig();
+  let provider = selectProvider(llmConfig);
   let aiError: string | null = null;
+  let budgetReason: string | null = null;
+
+  // Protección de costos: solo corre cuando hay proveedor real (una llamada al
+  // LLM cuesta plata; el template local es gratis). Sin margen en el
+  // presupuesto, o sin poder verificarlo, se usa el template y `budgetReason`
+  // explica por qué la IA no se usó.
+  if (llmConfig) {
+    const budget = readAiBudget();
+    // El cast recorta los genéricos de postgrest a propósito: el shape mínimo
+    // que `countRealAiAttempts` necesita no justifica que el compilador resuelva
+    // el árbol completo de tipos del SupabaseClient (TS2589). El query se
+    // valida en vivo contra audit_logs en la prueba de humo.
+    const attemptsClient = admin as unknown as AiAttemptClient;
+    const verdict = await checkAiBudget((fromIso) => countRealAiAttempts(attemptsClient, fromIso), budget);
+
+    if (!verdict.allowed) {
+      budgetReason = verdict.reason;
+      provider = new TemplateDraftProvider();
+    }
+  }
+
+  let result: DraftOutput;
 
   try {
     result = await provider.generate(input);
@@ -148,6 +176,7 @@ export async function POST(request: Request): Promise<Response> {
     provider: result.provider,
     fromFallback: result.fromFallback,
     aiError,
+    budgetReason,
   };
 
   await logAuditEvent({
@@ -161,6 +190,7 @@ export async function POST(request: Request): Promise<Response> {
       provider: payload.provider,
       fromFallback: payload.fromFallback,
       aiError,
+      budgetReason,
     },
     error_message: aiError,
   });
