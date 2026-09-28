@@ -1,4 +1,5 @@
 import { logAuditEvent } from '@/lib/audit';
+import { isReplyAuthorized, readAuthConfig } from '@/lib/auth';
 import {
   checkAiBudget,
   countRealAiAttempts,
@@ -32,8 +33,33 @@ import {
  * que la IA funcionó. Con IA configurada y fallo del proveedor, vuelve el
  * template con `aiError` para que la UI avise "Fallo borrador IA" en lugar de
  * callarse el problema.
+ *
+ * Escritura protegida: exige `Authorization: Bearer <token>`. El rechazo se
+ * audita, igual que el rechazo de `save-reply`.
  */
 export async function POST(request: Request): Promise<Response> {
+  const config = readAuthConfig();
+
+  if (!isReplyAuthorized(request, config)) {
+    await logAuditEvent({
+      action: 'GENERATE_AI_DRAFT',
+      entity_name: 'reviews',
+      entity_id: null,
+      method: 'POST',
+      request_payload: null,
+      response_status: 'fail',
+      response_data: null,
+      error_message: 'No autorizado: iniciá sesión para responder.',
+    });
+
+    return jsonResponse(
+      buildErrorResponse<DraftResult>(
+        'No autorizado: iniciá sesión para responder.',
+      ),
+      401,
+    );
+  }
+
   let body: Partial<DraftInput> = {};
 
   try {

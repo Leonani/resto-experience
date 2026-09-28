@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 
+import { AuthGate } from "@/components/AuthGate";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterBar } from "@/components/FilterBar";
 import { ReviewCard } from "@/components/ReviewCard";
@@ -79,7 +80,8 @@ export default async function Page({ searchParams }: PageProps<"/">) {
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
-      <header className="flex flex-col gap-1">
+      <AuthGate>
+        <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
           Bandeja de reseñas
         </h1>
@@ -127,6 +129,7 @@ export default async function Page({ searchParams }: PageProps<"/">) {
           )}
         </>
       )}
+      </AuthGate>
     </main>
   );
 }
