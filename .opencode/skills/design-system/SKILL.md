@@ -17,20 +17,22 @@ Orden de la columna de contenido (Server Component `page.tsx`):
 1. **`SiteHeader`**: ícono `Star` en caja negra `rounded-2xl`, título
    **"Reseñas y Métricas"** + subtítulo. Es solo título: la sesión (login /
    pastilla) ya NO vive acá, está en el footer de la sidebar (ver §7.2/7.3)
-2. **Banner oscuro** `bg-[#0f172a]` texto blanco `rounded-2xl`: la
-   **"Reseñas · Hoy & Este Mes"** con el badge `{todayCount} hoy`
-   (`data-testid="resenas-hoy"`). Es un conteo REAL de `published_at` del día
-   (UTC, `calculateOverallSummary`): si el dataset es viejo da 0, y 0 es honesto
-3. **Sección "Métricas"**: rótulo `h2` uppercase con tracking ancho
-   (`text-xs font-semibold tracking-wider uppercase text-slate-500`) + los
+2. **Sección "Métricas"**: rótulo `h2` visible
+   (`text-lg font-semibold tracking-tight text-slate-900`) + los
    **`KPICards`**: grid `sm:grid-cols-2 xl:grid-cols-4`. Toda métrica sale de
    `calculateOverallSummary` (pura, testeada). **Nunca** fabricar comparativos
    ("+12% vs previo") ni inventar el promedio: sin reseñas calificadas → "Sin
    datos" (`data-testid="avg-sin-datos"`)
-4. **Gráficos** (una fila, `grid gap-6 lg:grid-cols-2 lg:items-start`), SIEMPRE
+3. **Gráficos** (una fila, `grid gap-6 lg:grid-cols-2 lg:items-start`), SIEMPRE
    **arriba de los filtros y abajo de las métricas**: a la izquierda el
    `EvolutionChart` (§4.0, evolución temporal) y a la derecha el bento del
    `SummaryHeader` (§4.1)
+4. **Banner oscuro** `bg-[#0f172a]` texto blanco `rounded-2xl`: la
+   **"Reseñas · Hoy & Este Mes"** con el badge `{todayCount} hoy`
+   (`data-testid="resenas-hoy"`), pegado **justo arriba de los filtros** (es
+   contexto del bloque de reseñas, no del encabezado). Es un conteo REAL de
+   `published_at` del día (UTC, `calculateOverallSummary`): si el dataset es
+   viejo da 0, y 0 es honesto
 5. **FilterBar** completo, en su card blanca `rounded-2xl` (envuelto en
    `<Suspense>`, ver §5). En el lado derecho de la MISMA card vive
    la cabecera del feed: título **"Feed de reseñas"** + contador de visibles
