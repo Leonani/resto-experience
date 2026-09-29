@@ -6,6 +6,7 @@ import {
   calculateRatingDistribution,
   calculateRatingsByLocation,
   calculateSeriesOverTime,
+  filterReviewsByDateRange,
   RATING_BUCKETS,
 } from "@/lib/metrics";
 import { isResponded, type Review } from "@/lib/types/review";
@@ -322,5 +323,49 @@ describe("calculateSeriesOverTime — evolución por día", () => {
     expect(series.map((p) => p.label)).toEqual(["01/09", "02/09"]);
     expect(series[0].total).toBe(1);
     expect(series[1].total).toBe(1);
+  });
+});
+
+describe("filterReviewsByDateRange — filtro de fechas de las métricas", () => {
+  const reviews = [
+    review({ id: "a", published_at: "2026-09-01T12:00:00.000Z" }),
+    review({ id: "b", published_at: "2026-09-10T23:59:59.999Z" }),
+    review({ id: "c", published_at: "2026-09-16T18:00:00.000Z" }),
+  ];
+
+  it("sin rango devuelve todo (default = historial completo)", () => {
+    expect(filterReviewsByDateRange(reviews, {})).toHaveLength(3);
+    expect(filterReviewsByDateRange(reviews, { desde: null, hasta: null })).toHaveLength(3);
+  });
+
+  it("incluye los bordes: desde 00:00:00 y hasta 23:59:59.999", () => {
+    const enRango = filterReviewsByDateRange(reviews, {
+      desde: "2026-09-10",
+      hasta: "2026-09-10",
+    });
+
+    expect(enRango.map((r) => r.id)).toEqual(["b"]);
+  });
+
+  it("ignora fechas inválidas en vez de devolver todo en silencio", () => {
+    const enRango = filterReviewsByDateRange(reviews, { desde: "10/09/2026" });
+
+    expect(enRango).toHaveLength(3);
+    expect(filterReviewsByDateRange(reviews, { desde: "2026-13-45" })).toHaveLength(3);
+  });
+
+  it("rango invertido devuelve vacío, no cambia los límites", () => {
+    expect(
+      filterReviewsByDateRange(reviews, { desde: "2026-09-16", hasta: "2026-09-01" }),
+    ).toEqual([]);
+  });
+
+  it("soporta rango abierto por un solo lado", () => {
+    expect(
+      filterReviewsByDateRange(reviews, { desde: "2026-09-10" }).map((r) => r.id),
+    ).toEqual(["b", "c"]);
+    expect(
+      filterReviewsByDateRange(reviews, { hasta: "2026-09-01" }).map((r) => r.id),
+    ).toEqual(["a"]);
   });
 });

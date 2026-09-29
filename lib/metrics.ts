@@ -200,6 +200,61 @@ export function calculateOverallSummary(
 }
 
 // ---------------------------------------------------------------------------
+// Rango de fechas de las métricas
+// ---------------------------------------------------------------------------
+
+export type DateRange = {
+  /** "YYYY-MM-DD" inclusive (00:00:00 UTC). Vacío/null = sin límite inferior. */
+  desde?: string | null;
+  /** "YYYY-MM-DD" inclusive (23:59:59.999 UTC). Vacío/null = sin límite superior. */
+  hasta?: string | null;
+};
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Un día es válido solo si tiene forma de fecha Y existe en el calendario. */
+function esDiaValido(valor: string | null | undefined): valor is string {
+  if (typeof valor !== "string" || !ISO_DAY.test(valor)) return false;
+  return !Number.isNaN(Date.parse(`${valor}T00:00:00.000Z`));
+}
+
+/**
+ * Filtra reseñas por rango de fechas de publicación, con bordes INCLUSIVE en
+ * UTC (un "hasta 16/09" incluye las 23:59:59.999 de ese día).
+ *
+ * Sin `desde` ni `hasta` devuelve la lista completa: el default del panel es
+ * "todo el historial", no un rango inventado.
+ *
+ * Un rango invertido (`desde > hasta`) devuelve lista vacía en vez de cambiar
+ * los límites por detrás: la UI impide invertido, y si llega por URL lo que se
+ * ve es 0, no un rango distinto del pedido.
+ */
+export function filterReviewsByDateRange(
+  reviews: Review[],
+  range: DateRange,
+): Review[] {
+  const desde = esDiaValido(range.desde) ? range.desde : null;
+  const hasta = esDiaValido(range.hasta) ? range.hasta : null;
+
+  if (desde === null && hasta === null) return reviews;
+  if (desde !== null && hasta !== null && desde > hasta) return [];
+
+  const desdeMs = desde === null ? null : Date.parse(`${desde}T00:00:00.000Z`);
+  const hastaMs = hasta === null ? null : Date.parse(`${hasta}T23:59:59.999Z`);
+
+  return reviews.filter((review) => {
+    const time = new Date(review.published_at).getTime();
+
+    // Con un rango activo, una fecha ilegible no se puede ubicar: queda fuera.
+    if (Number.isNaN(time)) return false;
+    if (desdeMs !== null && time < desdeMs) return false;
+    if (hastaMs !== null && time > hastaMs) return false;
+
+    return true;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Evolución en el tiempo (alimenta el gráfico "Evolución de las reseñas")
 // ---------------------------------------------------------------------------
 
