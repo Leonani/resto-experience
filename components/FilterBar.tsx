@@ -42,9 +42,11 @@ const ESTADO_LABEL: Record<EstadoFilter, string> = {
 export function FilterBar({
   locations,
   restaurants,
+  visibleCount,
 }: {
   locations: Location[];
   restaurants: Restaurant[];
+  visibleCount: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -62,11 +64,23 @@ export function FilterBar({
       ? locations
       : locations.filter((location) => location.restaurant_id === restaurante);
 
+  // Cada filtro tiene UN valor que es el default y no necesita ir en la URL.
+  // Cuidado con "todas": es el default SOLO para estrellas. Para estado el
+  // default es "pendientes", así que "estado=todas" DEBE persistir: si se
+  // borrara el param, el lector de la URL lo interpretaría como "pendientes".
+  function esValorDefault(key: string, value: string): boolean {
+    return (
+      (key === "restaurante" && value === TODAS) ||
+      (key === "sede" && value === TODAS) ||
+      (key === "estrellas" && value === "todas") ||
+      (key === "estado" && value === "pendientes")
+    );
+  }
+
   function update(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
 
-    if (value === TODAS || value === "todas" || value === "pendientes") {
-      // `pendientes` es el default, no necesita ir en la URL.
+    if (esValorDefault(key, value)) {
       params.delete(key);
     } else {
       params.set(key, value);
@@ -185,11 +199,33 @@ export function FilterBar({
         </Select>
       </div>
 
-      {hayFiltros && (
-        <Button variant="ghost" onClick={clearAll} className="ml-auto">
-          Limpiar filtros
-        </Button>
-      )}
+      {/* Cabecera del feed: convive con los filtros en la misma card.
+          El orden mostrado es el real (compareReviewsByPriority), nunca el de
+          llegada: el subtítulo lo declara en vez de fingir un feed cronológico. */}
+      <div className="ml-auto flex flex-col items-end gap-1.5">
+        {hayFiltros && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearAll}
+            className="h-auto px-1 py-0.5 text-xs text-slate-500"
+          >
+            Limpiar filtros
+          </Button>
+        )}
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-slate-900">Feed de reseñas</h2>
+          <span
+            className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 tabular-nums"
+            data-testid="feed-count"
+          >
+            {visibleCount}
+          </span>
+        </div>
+        <p className="text-xs text-slate-500">
+          Pendientes primero, por estrellas y fecha
+        </p>
+      </div>
     </div>
   );
 }

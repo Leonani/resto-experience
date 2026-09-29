@@ -25,13 +25,17 @@ Orden de la columna de contenido (Server Component `page.tsx`):
    ("+12% vs previo") ni inventar el promedio: sin reseñas calificadas → "Sin
    datos" (`data-testid="avg-sin-datos"`)
 4. **FilterBar** completo, bajo el banner, en su card blanca `rounded-2xl`
-   (envuelto en `<Suspense>`, ver §5)
+   (envuelto en `<Suspense>`, ver §5). En el lado derecho de la MISMA card vive
+   la cabecera del feed: título **"Feed de reseñas"** + contador de visibles
+   (`data-testid="feed-count"`, llega por prop `visibleCount`) + sub
+   "Pendientes primero, por estrellas y fecha" (honestidad sobre el orden real).
+   Cuando hay filtros activos, el botón "Limpiar filtros" se agrupa arriba de
+   esa cabecera
 5. **Dos columnas** `lg:grid-cols-[minmax(0,1fr)_400px]`:
    - Izquierda (`min-w-0 flex flex-col gap-6`): bar chart apilado (§4.0) arriba,
      bento del `SummaryHeader` (§4.1) abajo
-   - Derecha (feed): card "Feed de reseñas" con contador de visibles + sub
-     "Pendientes primero, por estrellas y fecha" (honestidad sobre el orden), y
-     debajo los `ReviewCard` o el `EmptyState`
+   - Derecha (feed): solo los `ReviewCard` o el `EmptyState` (la cabecera ya
+     vive en la card de filtros)
 
 Referencia estética común: tarjetas **blancas** `rounded-2xl border-slate-200
 shadow-sm` (incluida la primitiva `ui/card`), `rounded-xl` para elementos
@@ -190,6 +194,11 @@ de búsqueda mediante `useSearchParams`.
 - Como `useSearchParams` fuerza render dinámico, el componente que lo usa debe
   estar envuelto en `<Suspense>` desde el Server Component que lo renderiza
 - Actualizar un filtro hace `router.replace(...)`, nunca un push que ensucie el historial
+- Cada filtro borra su parámetro SOLO cuando el valor es su default (`restaurante`→
+  todos, `sede`→todas, `estrellas`→todas, `estado`→`pendientes`). Por eso
+  **`estado=todas` SÍ persiste en la URL**: el default de estado es "pendientes",
+  si se borrara el param el lector lo interpretaría como pendientes y "Todas"
+  dejaría de funcionar
 - Los filtros son la fuente de verdad: la lista se filtra **en el servidor** leyendo
   `searchParams` en `page.tsx`, no en el cliente
 - Los filtros se combinan en AND: Restaurante deja las reseñas de todas sus sedes y
