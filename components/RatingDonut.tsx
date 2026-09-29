@@ -45,8 +45,9 @@ function renderPieLabel(props: PieLabelRenderProps) {
  * Mini-dona de composición de una sede. Va arriba del promedio dentro de la
  * tarjeta del bento. Cada sector usa el MISMO color que el bar chart apilado
  * (paleta de `ratings-chart.ts`) y muestra en su interior la CANTIDAD de
- * reseñas con esa calificación (conteo por sector). Centro vacío a propósito:
- * el total de reseñas y el promedio ya viven en la tarjeta.
+ * reseñas con esa calificación (conteo por sector), **sin línea guía**
+ * (`labelLine={false}`). Centro vacío a propósito: el total de reseñas y el
+ * promedio ya viven en la tarjeta.
  *
  * Sin leyenda a propósito: el detalle está en los conteos por sector y en el
  * bar chart global con leyenda.
@@ -76,6 +77,10 @@ export function RatingDonut({
             paddingAngle={2}
             stroke="none"
             label={renderPieLabel}
+            // Sin "palitos": recharts dibuja la línea guía hacia el sector cada
+            // vez que hay `label`. El conteo va dentro del sector, así que la
+            // línea solo suma ruido.
+            labelLine={false}
           >
             {segments.map((segment) => (
               <Cell key={segment.key} fill={segment.color} />
