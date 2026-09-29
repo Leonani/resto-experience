@@ -1,0 +1,548 @@
+# Arquitectura — Bandeja de Reseñas
+
+> **Rol:** Arquitecto de Software
+> **Documento:** `docs/architecture.md`
+> **Estado:** v1.0 — coherente con `docs/functional-spec.md`
+
+---
+
+## 1. Vista general
+
+```
+┌───────────────────────────────────────────────────────────────────────┐
+│  NAVEGADOR                                                           │
+│                                                                       │
+│  app/page.tsx (Server Component)                                     │
+│    ├─ lee ?restaurante &sede &estado &estrellas (searchParams=Promise)│
+│    ├─ lee catalogo + métricas        (Supabase, anon key)             │
+│    └─ pasa datos a <AuthGate>        (Client Component)              │
+│                                                                       │
+│  <AuthGate>        spinner "Verificando usuario…" + sesión en contexto│
+│  <Sidebar>         shell de navegación (Server, sin estado)           │
+│  <SiteHeader>      título + login/pastilla de sesión                  │
+│  <KPICards>        KPIs globales (overall summary ya calculado)       │
+│  <FilterBar> ──useRouter──> push() ──> la URL es el estado            │
+│  <EvolutionChart> + <SummaryHeader>  columna izquierda                 │
+│  <ReviewCard>         feed derecho, uncontrolled + fetch a /api/*     │
+└───────────────────────────────────────────────────────────────────────┘
+            │ POST (solo mutaciones)
+            │ Cookie: reviews_session (HttpOnly, la manda el navegador)
+            ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│  SERVIDOR (Node runtime)                                             │
+│                                                                       │
+│  app/api/auth/login/route.ts      valida (auth_users) → emite sesión  │
+│  app/api/auth/verify/route.ts     resuelve la cookie (sin auditar)    │
+│  app/api/auth/logout/route.ts     revoca la sesión + audita           │
+│  app/api/import/route.ts          token x-import-token (destructivo)  │
+│  app/api/generate-draft/route.ts  sesión + chequeo de origen (CSRF)   │
+│  app/api/save-reply/route.ts      sesión + chequeo de origen (CSRF)   │
+│    │                                                                  │
+│    ├─ verifyPassword() / requireSession()       ← fail-closed          │
+│    ├─ createClientAdmin()   ← SUPABASE_SERVICE_ROLE_KEY               │
+│    ├─ logAuditEvent()       ← SIEMPRE, éxito y fallo                 │
+│    └─ buildSuccess/ErrorResponse()  ← contrato único                  │
+└───────────────────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│  SUPABASE (PostgreSQL + RLS)                                         │
+│  restaurants ──< locations ──< reviews                               │
+│  auth_users (hash scrypt) · auth_sessions (hash sha256)               │
+│  audit_logs (independiente)                                          │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+### Decisión: la URL es el estado de los filtros
+
+`app/page.tsx` es un Server Component que **lee** los filtros de `searchParams`. Los
+filtros no viven en un `useState` del cliente: viven en la URL.
+
+Consecuencias:
+
+- El F5 no pierde la vista.
+- El link se puede compartir con un colega.
+- El botón "atrás" del navegador deshace un filtro.
+- El servidor puede leer los filtros sin hidratar primero.
+
+El `FilterBar` es un Client Component porque necesita `useRouter()` para escribir en la
+URL. Es el único que escribe; `page.tsx` solo lee.
+
+---
+
+## 2. Modelo relacional
+
+```sql
+restaurants (id TEXT PK, name TEXT)
+     │
+     │ 1:N
+     ▼
+locations  (id TEXT PK, restaurant_id TEXT FK, name TEXT)
+     │
+     │ 1:N
+     ▼
+reviews   (id TEXT PK, location_id TEXT FK, author, rating, text,
+           published_at, updated_at, reply_text, replied_at)
+
+audit_logs (id UUID PK, action, entity_name, entity_id, method,
+           request_payload JSONB, response_status, response_data JSONB,
+           error_message, created_at)
+```
+
+`audit_logs` **no** tiene FK ni dependencia de las otras tablas: es la bitácora del
+sistema y tiene que poder registrar el fallo de una operación que ni siquiera llegó a
+tocarlas. Si tuviera FK a `reviews`, no podría auditar un `rv-999` inexistente.
+
+### Restricciones que hacen trabajo de negocio
+
+| Restricción | Qué previene |
+|---|---|
+| `reviews.location_id REFERENCES locations(id)` | Una reseña en una sede fantasma. **Es la que hace posible RN-02**: si el importador no valida, la BD rechaza el insert |
+| `rating INTEGER CHECK (rating >= 1 AND rating <= 5)` | Calificaciones imposibles que romperían el promedio |
+| `ON DELETE CASCADE` en `locations` y `reviews` | Reseñas huérfanas de sedes eliminadas |
+| `restaurants` sin timestamps | Es un catálogo de referencia, no un recurso editable |
+
+### Decisión: `rating` es `INTEGER` nullable, no `NOT NULL DEFAULT 0`
+
+Un `DEFAULT 0` parece cómodo pero **rompe RN-03**: `AVG(rating)` contaría los `0` como
+estrellas reales y el promedio de Palermo bajaría de 3.63 a 3.22. El `NULL` es
+semánticamente correcto: "el cliente no interfirió con la calificación". Postgres lo
+excluye de `AVG` de forma nativa.
+
+### Decisión: sin `updated_at` automático
+
+`updated_at` viene del dato de origen (Google), no del reloj del servidor. Si Postgres lo
+migrara con `DEFAULT NOW()`, la deduplicación de RN-01 compararía la hora del importador
+contra la hora real del cliente y el resultado sería incorrecto. La columna es de solo
+lectura para la app.
+
+---
+
+## 3. Estructura de carpetas
+
+```
+app/
+  page.tsx                      Server Component. Lee searchParams.
+  api/
+    auth/
+      login/route.ts            POST: valida credenciales → emite sesión (cookie)
+      verify/route.ts           POST: resuelve la cookie → usuario y expiración
+      logout/route.ts           POST: revoca la sesión + limpia la cookie
+    import/route.ts             POST: seed catálogo + upsert reseñas
+    generate-draft/route.ts     POST: borrador IA (sesión + CSRF)
+    save-reply/route.ts         POST: persistir respuesta (sesión + CSRF)
+components/
+  AuthGate.tsx                  Client. Provider de sesión + spinner de verificación.
+  Sidebar.tsx                   Server. Sidebar fija de escritorio (oculta en
+                                tablet/móvil) que envuelve a SidebarNav.
+  sidebar-nav.tsx               Server. Contenido compartido de la sidebar:
+                                identidad + navegación + SessionMenu.
+  MobileSidebar.tsx             Client. Barra superior con menú hamburguesa que
+                                abre la sidebar como drawer (< lg).
+  SessionMenu.tsx               Client. Login/pastilla de sesión (footer de la sidebar).
+  SiteHeader.tsx                Server. Solo título "Reseñas y Métricas".
+  KPICards.tsx                  Server. Fila de 4 KPIs globales (overall summary).
+  LoginForm.tsx                 Client. Formulario de login (en el Dialog de SessionMenu).
+  FilterBar.tsx                 Client. Escribe en la URL.
+  MetricsDateFilter.tsx          Client. Rango de fechas de las MÉTRICAS
+                                  (desde/hasta); default = todo el histórico.
+  SummaryHeader.tsx             Client. Bento de métricas con mini-dona por sede.
+  EvolutionChart.tsx            Client. Serie temporal de reseñas (área por día
+                                  + línea de promedio de estrellas).
+  RatingDonut.tsx               Client. Mini-dona de composición de una sede.
+  ratings-chart.ts              Paleta y claves compartidas de los gráficos.
+  ReviewCard.tsx                Client. Texto, borrador, guardar.
+  EmptyState.tsx                Sin datos / sin resultados.
+  ui/                           Componentes shadcn (no tocar)
+lib/
+  auth.ts                       Criptografía de sesión y cookies (puro, testeable)
+  session.ts                    Acceso a auth_sessions (cliente inyectado, testeable)
+  session-guard.ts              Pegamento Request → sesión (server-only)
+  types/
+    api.ts                      ApiResponse<T> + builders
+    review.ts                   tipos del dominio
+  supabase/
+    client.ts                   createClientAdmin() — SOLO servidor
+  audit.ts                      logAuditEvent()
+  import/reviews.ts             dedup → validar FK → upsert
+  draft/provider.ts             DraftProvider + fallback local
+  metrics.ts                    calculateLocationSummary() + calculateOverallSummary() — puras
+data/reviews.json               fixture de entrada
+supabase/schema.sql             DDL
+scripts/verify-metrics.ts       gate contra la tabla de referencia
+```
+
+### Regla de dependencia
+
+```
+app/api  →  lib  →  @supabase/supabase-js
+   ↓
+componentes NUNCA importan de lib/supabase
+```
+
+Los Client Components no instancian clientes de Supabase. Reciben datos por props desde
+el Server Component. Motivo: la service role key se lee en el servidor, y un import
+accidental desde un Client Component la expondría en el bundle. La regla de Next.js es
+que un módulo con `SUPABASE_SERVICE_ROLE_KEY` no debe ser alcanzable desde el cliente.
+
+---
+
+## 4. Estrategia de manejo de errores
+
+### Contrato único
+
+Todo endpoint devuelve:
+
+```ts
+type ApiResponse<T> = {
+  success: 'ok' | 'fail';
+  data: T | null;
+  message: string;
+};
+```
+
+`success` es un **string**, no un booleano. Motivo: distingue tres estados con un solo
+campo y deja el booleano libre. Un `success: boolean` obliga a deducir el resultado del
+resto del objeto, que es exactamente lo que produce los estados ambiguos.
+
+### `lib/audit.ts` — por qué el "fallback" a anon key es un error de diseño
+
+El patrón habitual y **equivocado**:
+
+```ts
+// NUNCA HACER ESTO
+const supabase = process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  : createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+```
+
+Parece defensivo. En realidad introduce un fallo silencioso: si falta la service role key
+en el entorno de producción, la operación **no falla**. Se degrada a la anon key, que por
+políticas RLS no puede escribir, la escritura se rechaza con un 403, y el código puede
+convertirlo en un error genérico. El gerente ve "no pude guardar". El log dice 403. Nadie
+sabe que el servidor está mal configurado. La app *parece* funcionar.
+
+La versión correcta falla ruidosamente:
+
+```ts
+export function createClientAdmin() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) {
+    throw new Error(
+      'SUPABASE_SERVICE_ROLE_KEY ausente. Fallar es preferible a degradar a la anon key, ' +
+      'que escribiría con permisos reducidos y ocultaría el problema de configuración.'
+    );
+  }
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+```
+
+`persistSession: false` y `autoRefreshToken: false` son obligatorios: el client de
+servidor no es un navegador, no tiene dónde guardar sesión, y un refresh token en un
+entorno serverless no sirve para nada.
+
+### `@supabase/supabase-js` no lanza excepciones
+
+Este es el error más caro del stack. La API devuelve `{ data, error }`. Un
+`await supabase.from('x').insert(y)` que se ignora no lanza nada: falla en silencio con
+`data: null`. Por eso **todo** acceso pasa por un destructuring explícito:
+
+```ts
+const { data, error } = await admin.from('reviews').upsert(rows);
+if (error) { /* auditar y responder fail */ }
+```
+
+Regla de revisión: ningún `.insert()`, `.update()`, `.upsert()`, `.delete()` ni
+`.select()` sin chequeo de `error` en las dos líneas siguientes.
+
+### `safeJson` — por qué existe
+
+`request_payload` y `response_data` son `JSONB`. Un `JSON.stringify` puede fallar si el
+valor tiene referencias circulares, `BigInt`, o si un error de Supabase trae objetos con
+métodos. Un `JSONB` insertado con `undefined` (no `null`) rompe la consulta entera.
+
+`safeJson` envuelve el `JSON.stringify` y devuelve `null` ante cualquier excepción. Perder
+el detalle de un log es aceptable; perder la mutación completa no.
+
+### Columnas `JSONB`: el insert debe guardar objetos, no strings
+
+Una columna `jsonb` recibe un objeto; si se le inserta un *string* JSON, PostgreSQL lo
+guarda como **string jsonb** (doble encoding) y los predicados `response_data->>campo`
+dejan de funcionar de forma silenciosa (`jsonb_typeof` devuelve `'string'`, las consultas
+por campo devuelven `null`). Por eso `logAuditEvent` inserta `cleanForJsonb(...)`:
+`safeJson` primero (limpia `undefined` y circulares) y luego `JSON.parse` para que la
+columna tenga un objeto real. Este defecto existió y se corrigió; las filas históricas se
+normalizaron en la base (jsonb string → objeto) el mismo día.
+
+### Tipos de error devueltos al cliente
+
+| Situación | HTTP | `success` | Mensaje |
+|---|---|---|
+| Éxito | 200 | `ok` | Descriptivo del resultado |
+| Body inválido / faltante | 400 | `fail` | Qué campo falla |
+| Sin sesión en una escritura | 401 | `fail` | "No autorizado: iniciá sesión para responder." |
+| Auth no configurada en el servidor | 503 | `fail` | Que falta configuración (fail-closed) |
+| Recurso inexistente | 404 | `fail` | Que no existe |
+| Sin `LLM_API_KEY` | 200 | `ok` | `fromFallback: true`; usa el template local |
+| Error del proveedor de IA | 200 | `ok` | `aiError` con el motivo + borrador local |
+| Límite de generación IA alcanzado | 200 | `ok` | `budgetReason` + borrador local, sin llamar al proveedor |
+| Borrador vacío (defensivo) | 502 | `fail` | No se pudo generar |
+| Error de Supabase | 500 | `fail` | Genérico. El detalle va al log, no al cliente |
+
+El último punto importa: los mensajes de `Supabase` pueden contener nombres de tablas,
+columnas y fragmentos de query. Se registra completo en `error_message` y se devuelve al
+cliente solo un mensaje genérico. Un error de base de datos no es un mensaje para el
+gerente.
+
+---
+
+## 5. Auditoría
+
+### Principio: auditar también los rechazos
+
+La tentación es auditar lo que se successfully escribió. El error de diseño es ese: una
+reseña descartada por `loc-99` deja exactamente el mismo estado observable que una reseña
+que nunca llegó. El gerente ve que el total no cuadra y no tiene forma de saber si fue
+un bug del importador o un dato que se perdió. La auditoría es lo que convierte "el
+número es 15" en "el número es 15 y estas son las 3 razones por las que no son 16".
+
+Por eso RN-07 especifica que se audita el fallo, no solo el éxito.
+
+### Acciones auditadas
+
+| `action` | Cuándo | `entity_name` | `entity_id` |
+|---|---|---|---|
+| `IMPORT_REVIEWS` | Fin de cada importación | `reviews` | `null` (batch) |
+| `SKIP_REVIEW` | Cada registro descartado | `reviews` | `rv-301` |
+| `GENERATE_AI_DRAFT` | Cada intento de borrador | `reviews` | `rv-101` |
+| `SAVE_REPLY` | Cada intento de guardado | `reviews` | `rv-101` |
+| `AUTH_LOGIN` | Cada intento de login (éxito y fallo) | `auth` | usuario si se identificó |
+| `AUTH_LOGOUT` | Cada cierre de sesión | `auth` | usuario si se sabía |
+
+`method` documenta el origen técnico, no la acción de negocio: `POST` para Route Handlers,
+`SERVER_ACTION` para Server Actions, `SCRIPT` para el `verify-metrics.ts`. La auditoría
+sirve para reconstruir *cómo* pasó algo, no solo *qué* pasó.
+
+### `response_status` es `'ok' | 'fail'`, no booleano
+
+Misma razón que `success` en la API. Además evita el `NULL` de una fila insertada sin el
+campo: `NOT NULL` lo rechaza y el log se pierde, que es peor que no tener log.
+
+---
+
+## 5.1 Sesión de escritura (single user)
+
+### Qué se protege y qué no
+
+El listado y los filtros son **públicos por diseño**: están en la URL (sección 1), y se
+pueden compartir para que un colega vea exactamente la misma vista. Escribir no es
+compartible: exige sesión.
+
+| Recurso | Público | Protegido |
+|---|---|---|
+| `GET /` (métricas, filtros, listado) | Sí | — |
+| `POST /api/generate-draft` | — | Cookie de sesión + chequeo de origen |
+| `POST /api/save-reply` | — | Cookie de sesión + chequeo de origen |
+| `POST /api/auth/logout` | — | Idempotente, no rechaza |
+| `POST /api/import` | — | `x-import-token` (ya existía) |
+
+### Credenciales en la base, sesiones en la base
+
+Las credenciales del login (usuario + contraseña) viven en la tabla `auth_users` de
+Supabase, con la contraseña hasheada con **scrypt** (`scrypt$salt$hash`, generada por
+`hashPassword()` de `lib/auth.ts`). Se usó scrypt y no SHA-256 para el hash en reposo: un
+hash rápido convierte una contraseña en algo decodificable por fuerza bruta. La tabla no
+tiene políticas de RLS: ni la anon key ni `authenticated` pueden leerla, y no se audita su
+lectura; solo la service role la consulta desde el login y el verify.
+
+La sesión **tampoco** es un secreto del entorno. `POST /api/auth/login` emite un token
+opaco de 32 bytes en base64url y guarda **solo su SHA-256** en `auth_sessions`. Comprarar
+un hash y no el valor es lo correcto acá, al revés que con contraseñas: el token tiene 256
+bits de entropía, así que no hay fuerza bruta que hacer y SHA-256 alcanza. La tabla suma
+tres cosas que el modelo anterior no tenía:
+
+| Columna | Qué resuelve |
+|---|---|
+| `expires_at` | Expiración real. Antes el token de entorno duraba para siempre. |
+| `revoked_at` | Logout de verdad. Antes "salir" borraba una clave del navegador y el token seguía sirviendo. |
+| `username` | Quién hizo cada escritura, en la auditoría. |
+
+El token viaja en una cookie `HttpOnly` (`reviews_session`), nunca en `localStorage` ni en
+un header `Authorization`. Con `HttpOnly` el JavaScript de la página no puede leerlo, así
+que un XSS no puede robar la sesión. Por eso `lib/auth.ts` es deliberadamente **sin
+`server-only`** (se testea con vitest igual que `lib/draft/budget.ts`) y la lógica de
+criptografía no toca la base: esa parte vive en `lib/session.ts`, que recibe el cliente
+Supabase **inyectado** para poder testearse con un fake.
+
+Flujo:
+
+1. Al abrir la app, `AuthGate` (Client Component) llama a `POST /api/auth/verify` con
+   `credentials: 'same-origin'`. No tiene token que mandar: lo manda el navegador. Mientras
+   tanto muestra el spinner "Verificando usuario…".
+2. Sin sesión (o vencida o revocada) → `anonimo`: el dashboard se muestra completo pero sin
+   botones de escritura; `ReviewCard` avisa "Modo lectura". El botón de login está en el
+   footer de la sidebar (`SessionMenu`).
+3. `POST /api/auth/login` consulta `auth_users` con la service role y verifica la contraseña
+   con `verifyPassword()` (scrypt + `timingSafeEqual`, comparación a tiempo constante). Éxito →
+   inserta la fila en `auth_sessions` y responde con la cookie. El cuerpo de la respuesta
+   lleva `{ user, expiresAt }` y **nunca** el token.
+4. `save-reply` y `generate-draft` hacen el guard **antes de parsear el body**:
+   `requireSession()`. Sin cookie → 401 sin tocar la base; origen incorrecto → 403; sesión
+   no válida → 401. Rechazo → auditoría y respuesta con el contrato.
+
+El login **se audita** (éxito y fallo, `AUTH_LOGIN`) y el logout también (`AUTH_LOGOUT`),
+porque un intento fallido sin log es indistinguible de que nadie tocó la app — la misma
+razón de siempre. `verify` **no** se audita: no es una mutación. Tampoco se audita ni se
+loguea la contraseña: `request_payload` del login lleva solo el username.
+
+### CSRF: la cookie la manda el navegador, el origen es la frontera
+
+Una cookie `SameSite=Lax` ya bloquea el POST cross-site, pero el chequeo de origen se
+mantiene como defensa en profundidad (`isSameOrigin` en `lib/auth.ts`), en este orden:
+
+1. `Sec-Fetch-Site` si viene: solo se acepta `same-origin`. **`same-site` no**, porque en
+   Vercel los previews comparten sitio (`*.vercel.app`) y eso habilitaría a un preview ajeno a
+   mandarnos un POST con la cookie.
+2. `Origin`, que manda todo POST cross-site moderno.
+3. `Referer` como respaldo para navegadores viejos. Un `Referer` malformado se rechaza.
+4. Si no hay ninguno, se **permite**: es un cliente no-navegador (curl, tests) y no puede ser
+   un ataque CSRF, que necesita un navegador.
+
+Con `APP_ORIGIN` configurado gana ese valor; si no, se compara contra el origin de la propia
+request, que en Vercel ya es el público.
+
+### Fail-closed
+
+Sin cookie, con token inválido o malformado, con la sesión vencida o revocada, o con un
+origen que no corresponde, la escritura se rechaza. No existe un estado degradado en el que
+un olvido de entorno o de datos deje pasar silenciosamente una mutación: la app se vuelve
+de solo lectura y el login responde 401 (credenciales incorrectas) o 500 (si la sesión no se
+puede crear — nunca un 200 con una sesión que después no sirve).
+
+`SESSION_TTL_HOURS` es opcional y vale 8 h por defecto; un valor inválido, cero o negativo
+cae al default en vez de romper el login, y hay un tope de 30 días aunque se pida más. El
+`CHECK (expires_at > created_at)` en la tabla impide que una sesión nazca vencida por un
+bug de aplicación.
+
+`Secure` se manda solo en producción: en `http://localhost` el navegador descarta la cookie
+y no se podría ni probar el login en dev.
+
+---
+
+## 6. Capa de borrador IA
+
+`lib/draft/provider.ts` expone una interfaz, no un proveedor:
+
+```ts
+export interface DraftProvider {
+  generate(input: DraftInput): Promise<DraftResult>;
+}
+```
+
+`DraftInput` lleva solo lo necesario: `restaurantName`, `locationName`, `rating`, `text`.
+**No** lleva el objeto completo de la reseña ni nada que pueda contener datos de otras
+sedes.
+
+La selección es por entorno, en el servidor, a través de `readLlmConfig` y
+`selectProvider`:
+
+- `LLM_API_KEY` presente → `OpenAiCompatibleDraftProvider` (OpenRouter por defecto;
+  `LLM_BASE_URL` permite apuntar a cualquier proveedor compatible con
+  `/chat/completions`)
+- ausente → **fallback local determinístico**
+
+El proveedor real lanza `DraftProviderError` ante red caída, timeout de 15s, HTTP
+de error o respuesta vacía. El route no lo devuelve como `fail`: cae al template,
+responde `ok` con `fromFallback: true` y `aiError` con el motivo, para que la UI
+avise "Fallo borrador IA" pero el usuario pueda seguir trabajando con el borrador
+local. Exigir la key al cliente, o fingir éxito cuando el proveedor falló, son los
+dos extremos que este diseño evita.
+
+El fallback genera un borrador coherente con el tono según el rating (positivo /
+neutro / negativo) y, si `text` está vacío, agradece sin referenciar contenido (RN-04).
+No es un placeholder de "próximamente": es texto real y guardable. La app es completamente
+operativa sin proveedor de IA; la IA es una mejora, no un requisito.
+
+### Protección de costos (presupuesto de generaciones IA)
+
+La llamada real al proveedor es el único punto donde la app gasta plata, y hacia la red
+quedó abierta a cualquiera. `lib/draft/budget.ts` la acota con un presupuesto por ventana,
+antes de invocar al proveedor:
+
+- Se cuentan los **intentos reales** de IA en `audit_logs` (los últimos 60 min y las últimas
+  24 h). "Intento real" = `response_data->>fromFallback = 'false'` (éxito) o
+  `response_data->>aiError` presente (LLM configurado que falló). El template sin key no
+  cuenta: no costó nada.
+- Límites por entorno, con defaults: `LLM_BUDGET_PER_HOUR` (20) y `LLM_BUDGET_PER_DAY`
+  (50). El piso del demo es 16 generaciones diarias (un borrador por cada reseña de la
+  bandeja); 50 lo cubre con holgura sin el default exagerado de 100.
+- Sin margen → se usa el template local y el cliente recibe `budgetReason`, que la UI muestra
+  como nota ámbar (distinta de la alerta roja de `aiError`).
+- **Fallo cerrado**: si no se puede leer el contador, no se llama al proveedor. No se puede
+  auditar el costo de una llamada que no se verifica; el template sale igual.
+- El intento bloqueado también se audita (`budgetReason` en `response_data`), pero como queda
+  con `fromFallback: true` y sin `aiError`, no se autocontabiliza como intento real.
+
+El contador vive en `audit_logs` a propósito: no agrega tabla ni infraestructura nueva, y el
+dato de cuánto se gastó es reconciliable con la trazabilidad existente.
+
+El borrador **nunca** se persiste. Vive en el estado del `ReviewCard` y se marca de forma
+inequívoca (RN-06). Solo llega a `reviews.reply_text` cuando el usuario confirma.
+
+---
+
+## 7. Cálculo de métricas
+
+`lib/metrics.ts` exporta `calculateLocationSummary`, una función ** pura** que no toca
+Supabase. Recibe un array de reseñas y devuelve el resumen.
+
+Pura por una razón concreta: es la única forma de testear los casos sucios. Un cálculo
+mezclado con un fetch necesita una base de datos para verificar que Palermo da 3.63. Como
+función pura, el test es un `expect` sin mocks.
+
+El promedio se calcula con un filtro explícito, no confiando en la semántica de `NULL`:
+
+```ts
+const rated = reviews.filter(r => r.rating !== null);
+const average = rated.length === 0
+  ? null
+  : round2(rated.reduce((s, r) => s + r.rating, 0) / rated.length);
+```
+
+El filtro explícito documenta la regla (RN-03) y sobrevive a que alguien cambie el tipo de
+la columna. Además `average === null` y no `0` cuando `rated.length === 0`, que es
+exactamente el caso de Belgrano en RN-05.
+
+`replyPercentage` usa **total** de reseñas, no solo las calificadas, porque "de las 9
+reseñas que recibimos, respondimos 2" es la pregunta que hace el gerente.
+
+---
+
+## 8. Decisiones registradas y por qué
+
+| Decisión | Alternativa descartada | Motivo |
+|---|---|---|
+| Filtros en `searchParams` | `useState` en el cliente | Recarga, compartir y "atrás" funcionan gratis |
+| `service_role` sin fallback | Degradar a anon key | El fallback oculta una mala configuración detrás de un error genérico |
+| `success: 'ok' \| 'fail'` | `success: boolean` | Un string codifica tres estados y no ocupa el booleano |
+| Auditar los rechazos | Auditar solo los éxitos | Sin log, un descarte es indistinguible de un dato perdido |
+| `rating` nullable | `NOT NULL DEFAULT 0` | `DEFAULT 0` contamina el promedio (RN-03) |
+| `DraftProvider` + fallback | Integración directa con un LLM | La app funciona sin proveedor; la IA es opcional |
+| `calculateLocationSummary` pura | Cálculo dentro del Server Component | Los casos sucios son testeables sin base de datos |
+| Verificación por FK en BD | Solo validación en TypeScript | La BD es el último línea de defensa; TS no la reemplaza |
+| Sesión de escritura single user en `.env` | Auth multi-usuario / Supabase Auth | Un gerente, una sesión; proteger las mutaciones no requiere infraestructura de identidades |
+| Listado público + escritura con sesión | Todo el dashboard autenticado | Los filtros en la URL son compartibles (sección 1); escribir no tiene por qué serlo |
+
+---
+
+## 9. Riesgos técnicos asumidos
+
+| Riesgo | Impacto | Mitigación en v1 |
+|---|---|---|
+| Política `reviews FOR UPDATE USING (true)` | La anon key puede escribir respuestas | Documentado en el README. Aceptable para demo, **bloqueante para producción** |
+| Múltiples usuarios comparten una única sesión | Cada fila de `auth_sessions` es un par usuario/token | Aceptado: un gerente. La tabla ya soporta N usuarios sin migración |
+| Importación en memoria | Un JSON muy grande se carga entero en el serverless | El dataset es de ~10 KB. A escala se procesaría por lotes |
+| Sin rate limit en los endpoints | Endpoints POST públicos | Fuera de alcance declarado |
+| Un único `await` por lote | Los upsert son secuenciales | Aceptable a este volumen; documentar si crece |
