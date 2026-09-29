@@ -141,6 +141,8 @@ components/
   KPICards.tsx                  Server. Fila de 4 KPIs globales (overall summary).
   LoginForm.tsx                 Client. Formulario de login (en Dialog del header).
   FilterBar.tsx                 Client. Escribe en la URL.
+  MetricsDateFilter.tsx          Client. Rango de fechas de las MÉTRICAS
+                                  (desde/hasta); default = todo el histórico.
   SummaryHeader.tsx             Client. Bento de métricas con mini-dona por sede.
   EvolutionChart.tsx            Client. Serie temporal de reseñas (área por día
                                   + línea de promedio de estrellas).

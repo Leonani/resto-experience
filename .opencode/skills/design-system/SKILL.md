@@ -21,7 +21,17 @@ Orden de la columna de contenido (Server Component `page.tsx`):
    (`bg-[#0f172a] text-white rounded-2xl px-5 py-4 shadow-sm`), ícono `Target`
    en caja `bg-white/10 text-sky-300`, rótulo **"Métricas"** (`text-sm
    font-semibold tracking-wide`) y a la derecha el total real
-   (`{totalReviews} reseñas en total`) + los
+   (`{totalReviews} reseñas`, precedido del período `DD/MM/AAAA – DD/MM/YYYY`
+   cuando hay rango activo)
+2.1. **`MetricsDateFilter`** (Client, en su propia card `rounded-2xl`, entre el
+   rótulo y los KPIs): dos `<Input type="date">` **Desde** / **Hasta** +
+   "Todo el histórico". Escribe `desde`/`hasta` en la URL y **solo afecta a las
+   métricas** (`calculateOverallSummary` sobre `filterReviewsByDateRange`), NO al
+   feed ni a los gráficos. **Default = historial completo** (sin params en la
+   URL, no un rango inventado). Bordes INCLUSIVE en UTC; rango invertido se
+   bloquea liberando el límite contrario, y `desde`/`hasta` cuentan para el
+   botón "Limpiar filtros" del `FilterBar`
+2.2. Los
    **`KPICards`**: grid `sm:grid-cols-2 xl:grid-cols-4`. Toda métrica sale de
    `calculateOverallSummary` (pura, testeada). **Nunca** fabricar comparativos
    ("+12% vs previo") ni inventar el promedio: sin reseñas calificadas → "Sin
