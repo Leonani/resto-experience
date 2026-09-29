@@ -130,8 +130,12 @@ app/
     save-reply/route.ts         POST: persistir respuesta (Bearer)
 components/
   AuthGate.tsx                  Client. Provider de sesión + spinner de verificación.
-  Sidebar.tsx                   Server. Navegación del shell (sin estado, maqueta)
-                                + footer con SessionMenu.
+  Sidebar.tsx                   Server. Sidebar fija de escritorio (oculta en
+                                tablet/móvil) que envuelve a SidebarNav.
+  sidebar-nav.tsx               Server. Contenido compartido de la sidebar:
+                                identidad + navegación + SessionMenu.
+  MobileSidebar.tsx             Client. Barra superior con menú hamburguesa que
+                                abre la sidebar como drawer (< lg).
   SessionMenu.tsx               Client. Login/pastilla de sesión (footer de la sidebar).
   SiteHeader.tsx                Server. Solo título "Reseñas y Métricas".
   KPICards.tsx                  Server. Fila de 4 KPIs globales (overall summary).

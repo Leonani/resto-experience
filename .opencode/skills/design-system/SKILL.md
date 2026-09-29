@@ -47,7 +47,8 @@ interiores (pills, bloques de respuesta).
 ### 0.1 Sidebar (`components/Sidebar.tsx`)
 
 Server Component sin estado. `w-64` pegada con `sticky top-0 h-screen`, `bg-white
-border-r`. Contenido:
+border-r`. Contenido compartido en `SidebarNav` (Server), reutilizado por el
+drawer móvil. Contenido:
 
 - Identidad: logo de la app (`/logo-resto.png`, sin fondo) en caja
   `rounded-xl` + título en negrita "Resto Experience" (sin subtítulo)
@@ -60,6 +61,14 @@ border-r`. Contenido:
   `LoginForm`, o pastilla `data-testid="session-pill"` con avatar de inicial +
   nombre de usuario + botón Salir. La sesión vive acá, junto al perfil, NO en
   el header
+
+La sidebar fija se oculta en tablet/móvil (`hidden lg:flex`): en esas pantallas
+la navegación vive en el drawer **`MobileSidebar`** (Client) que se abre con el
+botón hamburguesa (`data-testid="menu-hamburguesa"`) de la barra superior
+`lg:hidden`. El drawer (`data-testid="menu-movil"`) es un overlay con fondo
+`bg-slate-900/40`, panel `w-64 bg-white` con scroll interno y equivale, en
+contenido, a `SidebarNav` (se recibe por `children` desde `page.tsx`; el login
+del `SessionMenu` también funciona ahí).
 
 ## 1. Jerarquía
 
