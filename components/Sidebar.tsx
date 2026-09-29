@@ -24,13 +24,12 @@ export function Sidebar({ restaurantName }: { restaurantName?: string }) {
       <div className="sticky top-0 flex h-screen w-64 flex-col border-r border-slate-200 bg-white px-4 py-6">
         {/* Identidad */}
         <div className="mb-8 flex items-center gap-3">
-          <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100">
+          <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl">
             <Image
               src="/logo-resto.png"
               alt="Logo Resto Experience"
               width={40}
               height={40}
-              className="rounded-xl"
             />
           </span>
           <div className="min-w-0">
