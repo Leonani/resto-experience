@@ -5,6 +5,7 @@ import {
   calculateOverallSummary,
   calculateRatingDistribution,
   calculateRatingsByLocation,
+  calculateSeriesOverTime,
   RATING_BUCKETS,
 } from "@/lib/metrics";
 import { isResponded, type Review } from "@/lib/types/review";
@@ -269,5 +270,57 @@ describe("Resumen global (KPIs del panel)", () => {
     );
 
     expect(overall.todayCount).toBe(3);
+  });
+});
+
+describe("calculateSeriesOverTime — evolución por día", () => {
+  it("devuelve lista vacía si no hay reseñas", () => {
+    expect(calculateSeriesOverTime([])).toEqual([]);
+  });
+
+  it("cubre el rango entero inclusive con los huecos como total 0", () => {
+    const series = calculateSeriesOverTime([
+      review({ id: "a", published_at: "2026-09-02T15:00:00.000Z" }),
+      review({ id: "b", published_at: "2026-09-02T01:00:00.000Z" }),
+      review({ id: "c", published_at: "2026-09-04T10:00:00.000Z" }),
+    ]);
+
+    expect(series.map((p) => [p.label, p.total])).toEqual([
+      ["02/09", 2],
+      ["03/09", 0],
+      ["04/09", 1],
+    ]);
+  });
+
+  it("promedia con 1 decimal solo las calificadas del día", () => {
+    const series = calculateSeriesOverTime([
+      review({ id: "a", rating: 5, published_at: "2026-09-10T10:00:00.000Z" }),
+      review({ id: "b", rating: 4, published_at: "2026-09-10T11:00:00.000Z" }),
+      review({ id: "c", rating: null, published_at: "2026-09-10T12:00:00.000Z" }),
+    ]);
+
+    expect(series).toHaveLength(1);
+    expect(series[0].total).toBe(3);
+    expect(series[0].promedio).toBe(4.5);
+  });
+
+  it("deja promedio null en un día sin calificadas (RN-05)", () => {
+    const series = calculateSeriesOverTime([
+      review({ id: "a", rating: null, published_at: "2026-09-10T10:00:00.000Z" }),
+    ]);
+
+    expect(series[0].promedio).toBeNull();
+    expect(series[0].promedio).not.toBe(0);
+  });
+
+  it("usa días UTC: 23:59 local de un día no se mezcla con el otro", () => {
+    const series = calculateSeriesOverTime([
+      review({ id: "a", published_at: "2026-09-01T23:59:59.000Z" }),
+      review({ id: "b", published_at: "2026-09-02T00:00:00.000Z" }),
+    ]);
+
+    expect(series.map((p) => p.label)).toEqual(["01/09", "02/09"]);
+    expect(series[0].total).toBe(1);
+    expect(series[1].total).toBe(1);
   });
 });

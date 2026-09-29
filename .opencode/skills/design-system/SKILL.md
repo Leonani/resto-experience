@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: Sistema de diseño y reglas de UI/UX para la bandeja de reseñas de la agencia gastronómica. Úsala al crear o modificar el shell (Sidebar izquierda, banner oscuro, KPICards, layout de dos columnas gráficos+feed sobre fondo crema), SiteHeader (título "Reseñas y Métricas" + login junto al título), SummaryHeader (bento grid de métricas con mini-dona por sede), RatingsStackedChart (bar chart apilado de sedes), FilterBar (filtros sincronizados con la URL), ReviewCard (borrador IA, edición inline, colores semánticos por estrellas), AuthGate (spinner de verificación, modo lectura), estados de carga, o cualquier componente de la bandeja. Contiene la paleta por estrellas (incluida la de buckets de gráficos), el indicador de borrador IA, la regla de "Sin datos" para sedes sin reseñas y la del modo lectura sin sesión.
+description: Sistema de diseño y reglas de UI/UX para la bandeja de reseñas de la agencia gastronómica. Úsala al crear o modificar el shell (Sidebar izquierda, banner oscuro, KPICards, layout de dos columnas gráficos+feed sobre fondo crema), SiteHeader (título "Reseñas y Métricas", la sesión vive en la sidebar), SummaryHeader (bento grid de métricas con mini-dona por sede), EvolutionChart (evolución temporal de reseñas por día), FilterBar (filtros sincronizados con la URL), ReviewCard (borrador IA, edición inline, colores semánticos por estrellas), AuthGate (spinner de verificación, modo lectura), estados de carga, o cualquier componente de la bandeja. Contiene la paleta por estrellas (incluida la de buckets de gráficos), el indicador de borrador IA, la regla de "Sin datos" para sedes sin reseñas y la del modo lectura sin sesión.
 ---
 
 # Design System — Bandeja de Reseñas
@@ -148,24 +148,24 @@ cuando el proveedor falló es un bug de honestidad, no de estilo. El cuarto esta
 
 ## 4. Bar chart apilado (global) y tarjetas Bento
 
-### 4.0 Bar chart apilado — "Composición de las reseñas"
+### 4.0 Gráfico de evolución — "Evolución de las reseñas"
 
-Client Component (`components/RatingsStackedChart.tsx`, recharts vía
-`ChartContainer`), una barra por sede segmentada por calificación. Va en la
-columna izquierda, arriba del bento:
+Client Component (`components/EvolutionChart.tsx`, recharts vía
+`ChartContainer`, `ComposedChart`). Muestra la serie temporal de reseñas, NO la
+composición por calificación (esa ya vive en las mini-donas del bento). Va en
+la columna izquierda, arriba del bento:
 
-- Una barra por sede con los buckets `r5…rnull` apilados (`stackId`) y la paleta 2.1
-- Las barras representan el **20% del ancho del contenedor**: `barCategoryGap="40%"`
-  (el gap se mide sobre el slot de la categoría, ~1/3 del área con 3 sedes, y lo
-  que queda de barra son ~20 puntos del total). Sin `maxBarSize`
-- Legend abajo (`ChartLegendContent`) con los labels de la misma config
-- Eje Y con enteros (`allowDecimals={false}`), texto de la sede en X
-- Subtítulo `"N reseñas en M sedes"`, con los mismos números que el header
-- Los datos llegan calculados como props desde `page.tsx` (client sin fetch)
-
-Regla de honestidad: si el dataset no tiene esas reseñas, la barra es cero; nunca se
-adorna con datos falsos. Sin leyenda propia por tarjeta: el detalle está en el tooltip
-de la dona y en este gráfico global.
+- **Área** con `total`: reseñas publicadas por **día**, con los días sin reseñas en 0
+  (los huecos se ven, no se esconden)
+- **Línea** con `promedio`: promedio de estrellas por día (eje derecho fijo 0-5,
+  `domain={[0, 5]}`), con `connectNulls={false}`: si un día no tuvo calificadas, la
+  línea corta en vez de inventar (RN-05)
+- Datos desde `calculateSeriesOverTime(reviews)` en `lib/metrics.ts` (serie
+  por día UTC, rango INCLUSIVE [min, max], `label "DD/MM"`), llegados por props
+- Eje X rotado 30° con `interval="preserveStartEnd"` para no amontonar etiquetas
+- Subtítulo "Reseñas por día · cantidad y promedio de estrellas"
+- Legend abajo (`ChartLegendContent`) con los labels de `SERIE_TEMPORAL_CONFIG`:
+  `total` esmeralda 600, `promedio` zinc 900
 
 ### 4.1 Tarjetas Bento de resumen por sede
 

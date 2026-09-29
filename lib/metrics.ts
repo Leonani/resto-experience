@@ -198,3 +198,63 @@ export function calculateOverallSummary(
     todayCount,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Evolución en el tiempo (alimenta el gráfico "Evolución de las reseñas")
+// ---------------------------------------------------------------------------
+
+export type SeriesPoint = {
+  /** Día UTC con formato "dd/MM". */
+  label: string;
+  /** Reseñas publicadas ese día. */
+  total: number;
+  /**
+   * Promedio de estrellas del día con 1 decimal, o `null` si ese día no tuvo
+   * ninguna calificada (RN-05: nunca `0`).
+   */
+  promedio: number | null;
+};
+
+/**
+ * Serie de reseñas por día entre la primera y la última publicación (ambos
+ * días INCLUSIVE, en UTC). Los días sin reseñas aparecen con `total: 0` para
+ * no maquillar la sparsidad: un hueco real se ve como un valle, no se esconde.
+ *
+ * Pura a propósito, igual que el resto del módulo: un gráfico honesto sale de
+ * una función testable con `expect` sin mocks.
+ */
+export function calculateSeriesOverTime(reviews: Review[]): SeriesPoint[] {
+  if (reviews.length === 0) return [];
+
+  const times = reviews.map((r) => new Date(r.published_at).getTime());
+  const start = new Date(Math.min(...times));
+  start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(Math.max(...times));
+  end.setUTCHours(0, 0, 0, 0);
+
+  const byDay = new Map<string, Review[]>();
+  for (const review of reviews) {
+    const key = new Date(review.published_at).toISOString().slice(0, 10);
+    const bucket = byDay.get(key) ?? [];
+    bucket.push(review);
+    byDay.set(key, bucket);
+  }
+
+  const points: SeriesPoint[] = [];
+  for (let day = new Date(start); day.getTime() <= end.getTime(); day.setUTCDate(day.getUTCDate() + 1)) {
+    const key = day.toISOString().slice(0, 10);
+    const dayReviews = byDay.get(key) ?? [];
+    const rated = dayReviews.filter((r) => r.rating !== null);
+
+    points.push({
+      label: `${key.slice(8, 10)}/${key.slice(5, 7)}`, // "YYYY-MM-DD" → "DD/MM"
+      total: dayReviews.length,
+      promedio:
+        rated.length === 0
+          ? null
+          : round1(rated.reduce((sum, r) => sum + (r.rating as number), 0) / rated.length),
+    });
+  }
+
+  return points;
+}
