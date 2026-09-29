@@ -118,21 +118,6 @@ export default async function Page({ searchParams }: PageProps<"/">) {
         <div className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
           <SiteHeader />
 
-          {/* Banner oscuro de contexto diario */}
-          <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#0f172a] px-5 py-4 text-white shadow-sm">
-            <div className="flex items-center gap-3">
-              <span className="grid size-8 place-items-center rounded-lg bg-white/10 text-sky-300">
-                <CalendarDays className="size-4" aria-hidden="true" />
-              </span>
-              <span className="text-sm font-semibold tracking-wide">
-                Reseñas · Hoy & Este Mes
-              </span>
-            </div>
-            <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-bold tabular-nums" data-testid="resenas-hoy">
-              {overall.todayCount} hoy
-            </span>
-          </div>
-
           {loadError ? (
             <div
               className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
@@ -149,7 +134,7 @@ export default async function Page({ searchParams }: PageProps<"/">) {
             <>
               {/* Métricas globales */}
               <section className="flex flex-col gap-3" aria-label="Métricas">
-                <h2 className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                <h2 className="text-lg font-semibold tracking-tight text-slate-900">
                   Métricas
                 </h2>
                 <KPICards overall={overall} />
@@ -165,6 +150,24 @@ export default async function Page({ searchParams }: PageProps<"/">) {
                   restaurants={restaurants}
                   ratingsByLocation={ratingsByLocation}
                 />
+              </div>
+
+              {/* Banner oscuro de contexto diario, justo arriba de los filtros */}
+              <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#0f172a] px-5 py-4 text-white shadow-sm">
+                <div className="flex items-center gap-3">
+                  <span className="grid size-8 place-items-center rounded-lg bg-white/10 text-sky-300">
+                    <CalendarDays className="size-4" aria-hidden="true" />
+                  </span>
+                  <span className="text-sm font-semibold tracking-wide">
+                    Reseñas · Hoy & Este Mes
+                  </span>
+                </div>
+                <span
+                  className="rounded-full bg-white/10 px-3 py-1 text-sm font-bold tabular-nums"
+                  data-testid="resenas-hoy"
+                >
+                  {overall.todayCount} hoy
+                </span>
               </div>
 
               <Suspense
