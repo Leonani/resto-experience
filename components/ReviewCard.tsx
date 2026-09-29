@@ -26,10 +26,12 @@ import type { ApiResponse, DraftResult, SaveReplyResult } from "@/lib/types/api"
  * El borrador vive en el estado de este componente y NUNCA se persiste solo:
  * solo llega a `reply_text` cuando el usuario confirma.
  *
- * Sin sesión (`useAuth().status === 'anonimo'`) la tarjeta entra en modo
- * lectura: se ve la reseña y si ya fue respondida, pero no hay botones de
- * escritura. El guardado y el borrador además están protegidos en el servidor
- * por la cookie de sesión `HttpOnly` y el chequeo de origen (CSRF).
+ * Sin sesión la tarjeta entra en modo lectura: se ve la reseña y si ya fue
+ * respondida, pero no hay botones de escritura. Vale para `anonimo` y también
+ * para `error` (falló la verificación), porque en los dos casos no hay sesión
+ * válida: la escritura se niega igual. El guardado y el borrador además están
+ * protegidos en el servidor por la cookie de sesión `HttpOnly` y el chequeo de
+ * origen (CSRF).
  */
 export function ReviewCard({ review }: { review: ReviewWithLocation }) {
   const router = useRouter();

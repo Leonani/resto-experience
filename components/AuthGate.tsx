@@ -3,7 +3,12 @@
 import { Loader2 } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import type { ApiResponse, LoginResult, VerifyResult } from "@/lib/types/api";
+import type { ApiResponse, LoginResult } from "@/lib/types/api";
+import {
+  classifyVerifyResponse,
+  VERIFY_NETWORK_ERROR,
+  type VerifyOutcome,
+} from "@/lib/verify-outcome";
 
 /**
  * Sesión de escritura (provider + verificación).
@@ -21,8 +26,17 @@ import type { ApiResponse, LoginResult, VerifyResult } from "@/lib/types/api";
  * Estados:
  *   - `verificando`: spinner "Verificando usuario…" mientras `/api/auth/verify`
  *     consulta la cookie de sesión.
- *   - `anonimo`: dashboard en modo lectura; `SessionMenu` muestra "Iniciar sesión".
+ *   - `anonimo`: dashboard en modo lectura; `SessionMenu` muestra "Iniciar
+ *     sesión". Es el estado NORMAL de quien no se logueó, no un error.
  *   - `autenticado`: escrituras habilitadas; `SessionMenu` muestra la pastilla.
+ *   - `error`: no se pudo saber si hay sesión (servidor caído, red, respuesta
+ *     inesperada). Antes esto caía en `anonimo` y la app se veía sana con el
+ *     servidor mal configurado. El listado sigue público y usable, pero
+ *     `SessionErrorBanner` avisa que la verificación falló.
+ *
+ * El reparto entre `anonimo` y `error` lo decide `classifyVerifyResponse`, que
+ * es lógica pura testeada en `tests/verify-outcome.test.ts`. La regla es que
+ * SOLO un 401 significa "no hay sesión".
  *
  * NO hay token en el cliente. La sesión vive en una cookie `HttpOnly`: el
  * navegador la manda sola con cada request y el JavaScript —ni siquiera un
@@ -31,13 +45,15 @@ import type { ApiResponse, LoginResult, VerifyResult } from "@/lib/types/api";
  * la cookie.
  */
 
-type AuthStatus = "verificando" | "anonimo" | "autenticado";
+type AuthStatus = "verificando" | "anonimo" | "autenticado" | "error";
 
 type AuthContextValue = {
   status: AuthStatus;
   user: string | null;
   /** ISO de expiración de la sesión, para poder mostrarla si hace falta. */
   expiresAt: string | null;
+  /** Por qué no se pudo verificar la sesión. `null` salvo en estado `error`. */
+  verificacionError: string | null;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -48,6 +64,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("verificando");
   const [user, setUser] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [verificacionError, setVerificacionError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -56,26 +73,50 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     // "Verificando usuario…" y después se resuelve la sesión, sin setState
     // síncrono dentro del efecto.
     const id = window.setTimeout(async () => {
+      const settle = (next: VerifyOutcome) => {
+        if (!active) return;
+
+        if (next.kind === "autenticado") {
+          setUser(next.user);
+          setExpiresAt(next.expiresAt);
+          setVerificacionError(null);
+          setStatus("autenticado");
+          return;
+        }
+
+        if (next.kind === "anonimo") {
+          setVerificacionError(null);
+          setStatus("anonimo");
+          return;
+        }
+
+        // Falló la verificación: se entra en modo lectura igual (el listado es
+        // público) pero se deja constancia de por qué, para que una mala
+        // configuración del servidor no pase por "no tenés sesión".
+        setUser(null);
+        setExpiresAt(null);
+        setVerificacionError(next.message);
+        setStatus("error");
+      };
+
       try {
         const res = await fetch("/api/auth/verify", {
           method: "POST",
           credentials: "same-origin",
         });
-        const body = (await res.json()) as ApiResponse<VerifyResult>;
 
-        if (!active) return;
-
-        if (res.ok && body.success === "ok" && body.data) {
-          setUser(body.data.user);
-          setExpiresAt(body.data.expiresAt);
-          setStatus("autenticado");
-        } else {
-          // Sin cookie, vencida o revocada: modo lectura.
-          setStatus("anonimo");
+        // El body puede no ser JSON: un 5xx por error de servidor crudo
+        // (variable de entorno ausente) devuelve HTML, y `res.json()` tira.
+        let body: unknown = null;
+        try {
+          body = await res.json();
+        } catch {
+          body = null;
         }
+
+        settle(classifyVerifyResponse({ ok: res.ok, status: res.status, body }));
       } catch {
-        if (!active) return;
-        setStatus("anonimo");
+        settle({ kind: "error", message: VERIFY_NETWORK_ERROR });
       }
     }, 0);
 
@@ -101,6 +142,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
     setUser(body.data.user);
     setExpiresAt(body.data.expiresAt);
+    setVerificacionError(null);
     setStatus("autenticado");
   }, []);
 
@@ -119,12 +161,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
     setUser(null);
     setExpiresAt(null);
+    setVerificacionError(null);
     setStatus("anonimo");
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, expiresAt, login, logout }),
-    [status, user, expiresAt, login, logout],
+    () => ({ status, user, expiresAt, verificacionError, login, logout }),
+    [status, user, expiresAt, verificacionError, login, logout],
   );
 
   return (

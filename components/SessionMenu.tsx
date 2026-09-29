@@ -58,7 +58,10 @@ export function SessionMenu({ restaurantName }: { restaurantName?: string }) {
     );
   }
 
-  if (status === "anonimo") {
+  // `error` también ofrece login: la verificación falló, no la sesión. Si acá
+  // solo se aceptara "anonimo", el usuario en estado error se quedaría sin
+  // ninguna forma de entrar y el fallo parecería definitivo.
+  if (status === "anonimo" || status === "error") {
     return (
       <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
         <DialogTrigger asChild>

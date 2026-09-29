@@ -265,7 +265,31 @@ de búsqueda mediante `useSearchParams`.
 
 La bandeja es pública por diseño (`RN-08`): ver métricas, filtros y listado no exige
 sesión. Solo escribir lo exige. `AuthGate.tsx` (Client Component envuelve el `main` de
-`page.tsx`) maneja tres estados:
+`page.tsx`) maneja cuatro estados:
+
+- `verificando`: se consulta la cookie contra `/api/auth/verify`
+- `anonimo`: no hay sesión, modo lectura. Es el estado **normal**, no un error
+- `autenticado`: escrituras habilitadas
+- `error`: **no se pudo saber si hay sesión** (servidor caído, red, respuesta
+  inesperada). Antes caía en `anonimo` y la app se veía sana con el servidor mal
+  configurado
+
+El reparto entre `anonimo` y `error` lo decide `classifyVerifyResponse`
+(`lib/verify-outcome.ts`, lógica pura testeada en `tests/verify-outcome.test.ts`).
+**Regla: SOLO un 401 significa "no hay sesión".** Un 403, un 5xx, un body no-JSON o
+un body con forma inesperada son error de verificación, nunca "anónimo". Un 5xx sin
+cuerpo JSON es la firma de un error lanzado antes de poder responder (por ejemplo
+`SUPABASE_SERVICE_ROLE_KEY` ausente): `createClientAdmin()` tira, Next devuelve HTML,
+y el cliente debe decirlo en vez de fingir que no hay sesión.
+
+Dos reglas que se aprendieron a la fuerza:
+
+- El botón de login (`SessionMenu`) se muestra en `anonimo` **y** en `error`. Si solo
+  acepta `anonimo`, el usuario en estado error se queda sin forma de entrar y el fallo
+  parece definitivo.
+- El error **no bloquea** nada: el listado es público, así que el dashboard se sigue
+  viendo en modo lectura. Solo se agrega un aviso honesto.
+
 
 ### 7.1 Verificando usuario (spinner)
 
@@ -301,6 +325,22 @@ sesión. Solo escribir lo exige. `AuthGate.tsx` (Client Component envuelve el `m
   usuario, **nombre del usuario** + restaurante/owner al lado, y botón ghost
   "Salir" (ícono `LogOut`).
 - Los botones de escritura vuelven a aparecer en cada `ReviewCard`.
+
+### 7.4 Aviso de verificación fallida (estado `error`)
+
+- `SessionErrorBanner` (`components/SessionErrorBanner.tsx`), montado en la columna
+  de contenido de `page.tsx` justo después de `SiteHeader`, **antes** del bloque de
+  error de datos
+- Estilo `rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700`
+  con `role="alert"` y `data-testid="session-error"`: el mismo lenguaje visual que el
+  bloque de error de carga de `page.tsx`. Rosa y no ámbar porque **es un error**, y el
+  ámbar del sistema está reservado para "límite alcanzado, no error" (§3, presupuesto IA)
+- Ícono `TriangleAlert` `text-rose-600`
+- Título **"No se pudo verificar la sesión"**, debajo el `message` del contrato o la
+  descripción factual del fallo, y una línea que aclara que el listado sigue
+  funcionando y las escrituras no
+- **Nunca un `toast`**: un aviso efímero se le pasa por arriba a quien llegó tarde, que
+  es justo el caso que cubre. Tampoco `window.alert()`
 
 Reglas de honestidad heredadas del resto del sistema: un 401 de `save-reply` o
 `generate-draft` cierra la sesión en la UI (el servidor niega igual, fail-closed) y el
