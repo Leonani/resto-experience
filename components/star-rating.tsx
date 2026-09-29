@@ -70,14 +70,17 @@ export function Stars({ rating }: { rating: number | null }) {
 }
 
 /**
- * Fecha relativa corta. Acepta que el servidor y el cliente difieran un segundo
- * sin producir un error de hidratación: el texto se calcula en el render del
- * servidor y React no lo vuelve a calcular en el cliente.
+ * Fecha relativa corta, idéntica en el servidor y en el cliente.
+ *
+ * `ReviewCard` es un Client Component, así que React vuelve a ejecutar esto
+ * durante la hidratación. Si la función tomara la hora por su cuenta, los dos
+ * renders calcularían sobre instantes distintos y el texto no coincidiría: el
+ * servidor escribiría "hace 5 min" y el cliente "hace 6 min". Por eso el
+ * instante de referencia llega por parámetro y ambos lados usan el mismo.
  */
-export function formatRelativeDate(iso: string): string {
+export function formatRelativeDate(iso: string, now: number): string {
   const date = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
+  const diffMs = now - date.getTime();
   const minutes = Math.floor(diffMs / 60_000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
@@ -87,11 +90,15 @@ export function formatRelativeDate(iso: string): string {
   if (days === 1) return "ayer";
   if (days < 30) return `hace ${days} días`;
 
-  return date.toLocaleDateString("es-AR", {
-    day: "numeric",
-    month: "short",
-    year: date.getFullYear() === now.getFullYear() ? undefined : "numeric",
-  });
+  // A partir de 30 días: fecha absoluta en DD/MM, armada a mano y en UTC.
+  // `toLocaleDateString` depende de la versión de ICU del runtime, y la de Node
+  // no es la del navegador; en UTC además evita que la zona horaria corra el
+  // día de una reseña que cayó cerca de medianoche.
+  const dia = String(date.getUTCDate()).padStart(2, "0");
+  const mes = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const mismoAnio = date.getUTCFullYear() === new Date(now).getUTCFullYear();
+
+  return mismoAnio ? `${dia}/${mes}` : `${dia}/${mes}/${date.getUTCFullYear()}`;
 }
 
 /** Tipo extendido para las props de los componentes de UI. */
