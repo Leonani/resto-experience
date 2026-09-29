@@ -59,7 +59,7 @@ export function SessionMenu({ restaurantName }: { restaurantName?: string }) {
         <DialogTrigger asChild>
           <Button
             variant="outline"
-            className="w-full justify-start gap-2 shadow-sm"
+            className="w-full justify-center gap-2 shadow-sm"
             data-testid="login-trigger"
           >
             <Sparkles className="size-4" aria-hidden="true" />

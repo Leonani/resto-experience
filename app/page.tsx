@@ -115,7 +115,7 @@ export default async function Page({ searchParams }: PageProps<"/">) {
         </MobileSidebar>
         <Sidebar restaurantName={restaurants[0]?.name} />
 
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
           <SiteHeader />
 
           {/* Banner oscuro de contexto diario */}
@@ -147,7 +147,25 @@ export default async function Page({ searchParams }: PageProps<"/">) {
             </div>
           ) : (
             <>
-              <KPICards overall={overall} />
+              {/* Métricas globales */}
+              <section className="flex flex-col gap-3" aria-label="Métricas">
+                <h2 className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  Métricas
+                </h2>
+                <KPICards overall={overall} />
+              </section>
+
+              {/* Gráficos: evolución temporal + bento por sede */}
+              <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+                <EvolutionChart data={serieTemporal} />
+
+                <SummaryHeader
+                  summaries={summaries}
+                  locations={locations}
+                  restaurants={restaurants}
+                  ratingsByLocation={ratingsByLocation}
+                />
+              </div>
 
               <Suspense
                 fallback={<div className="h-[120px] rounded-2xl border border-slate-200 bg-white" />}
@@ -159,41 +177,21 @@ export default async function Page({ searchParams }: PageProps<"/">) {
                 />
               </Suspense>
 
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
-                {/* Columna izquierda: gráficos y bento por sede */}
-                <div className="flex min-w-0 flex-col gap-6">
-                  <EvolutionChart data={serieTemporal} />
-
-                  <SummaryHeader
-                    summaries={summaries}
-                    locations={locations}
-                    restaurants={restaurants}
-                    ratingsByLocation={ratingsByLocation}
-                  />
-                </div>
-
-                {/* Columna derecha: feed de reseñas (la cabecera vive en la
-                    card de filtros; acá solo el listado). El feed nunca estira
-                    la página más allá de los gráficos: queda anclado con scroll
-                    propio dentro de la altura de la ventana. */}
-                <aside
-                  className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem-110px)] lg:min-h-0 lg:overflow-y-auto lg:pr-1"
-                  aria-label="Feed de reseñas"
-                >
-                  {visible.length === 0 ? (
-                    <EmptyState hayFiltros={hayFiltros} />
-                  ) : (
-                    <section
-                      className="flex flex-col gap-3"
-                      aria-label="Listado de reseñas"
-                    >
-                      {visible.map((review) => (
-                        <ReviewCard key={review.id} review={review} />
-                      ))}
-                    </section>
-                  )}
-                </aside>
-              </div>
+              {/* Reseñas: debajo de los filtros, a todo el ancho del contenido */}
+              <section
+                className="flex flex-col gap-3"
+                aria-label="Feed de reseñas"
+              >
+                {visible.length === 0 ? (
+                  <EmptyState hayFiltros={hayFiltros} />
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {visible.map((review) => (
+                      <ReviewCard key={review.id} review={review} />
+                    ))}
+                  </div>
+                )}
+              </section>
             </>
           )}
         </div>
