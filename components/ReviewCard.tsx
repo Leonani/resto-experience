@@ -29,11 +29,11 @@ import type { ApiResponse, DraftResult, SaveReplyResult } from "@/lib/types/api"
  * Sin sesión (`useAuth().status === 'anonimo'`) la tarjeta entra en modo
  * lectura: se ve la reseña y si ya fue respondida, pero no hay botones de
  * escritura. El guardado y el borrador además están protegidos en el servidor
- * por `Authorization: Bearer`.
+ * por la cookie de sesión `HttpOnly` y el chequeo de origen (CSRF).
  */
 export function ReviewCard({ review }: { review: ReviewWithLocation }) {
   const router = useRouter();
-  const { status, token, logout } = useAuth();
+  const { status, logout } = useAuth();
   const puedeResponder = status === "autenticado";
 
   const respondida = isResponded(review);
@@ -61,18 +61,16 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
     try {
       const res = await fetch("/api/generate-draft", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reviewId: review.id }),
       });
 
       const body = (await res.json()) as ApiResponse<DraftResult>;
 
       if (res.status === 401) {
-        // Sesión vencida o el token se invalidó: la UI vuelve a modo lectura.
-        logout();
+        // Sesión vencida o revocada en el servidor: la UI vuelve a modo lectura.
+        void logout();
         setError(body.message);
       } else if (body.success === "ok" && body.data) {
         setFallback(body.data.fromFallback);
@@ -103,18 +101,16 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
     try {
       const res = await fetch("/api/save-reply", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reviewId: review.id, replyText: texto }),
       });
 
       const body = (await res.json()) as ApiResponse<SaveReplyResult>;
 
       if (res.status === 401) {
-        // Sesión vencida o el token se invalidó: la UI vuelve a modo lectura.
-        logout();
+        // Sesión vencida o revocada en el servidor: la UI vuelve a modo lectura.
+        void logout();
         setError(body.message);
       } else if (body.success === "ok") {
         setBorrador(null);

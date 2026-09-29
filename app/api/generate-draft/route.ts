@@ -1,5 +1,5 @@
 import { logAuditEvent } from '@/lib/audit';
-import { isReplyAuthorized, readAuthConfig } from '@/lib/auth';
+import { requireSession } from '@/lib/session-guard';
 import {
   checkAiBudget,
   countRealAiAttempts,
@@ -34,13 +34,14 @@ import {
  * template con `aiError` para que la UI avise "Fallo borrador IA" en lugar de
  * callarse el problema.
  *
- * Escritura protegida: exige `Authorization: Bearer <token>`. El rechazo se
- * audita, igual que el rechazo de `save-reply`.
+ * Escritura protegida: exige la cookie de sesión `HttpOnly` y que la request
+ * venga del mismo origen (CSRF). El rechazo se audita, igual que el rechazo de
+ * `save-reply`.
  */
 export async function POST(request: Request): Promise<Response> {
-  const config = readAuthConfig();
+  const guard = await requireSession(request);
 
-  if (!isReplyAuthorized(request, config)) {
+  if (!guard.ok) {
     await logAuditEvent({
       action: 'GENERATE_AI_DRAFT',
       entity_name: 'reviews',
@@ -49,15 +50,10 @@ export async function POST(request: Request): Promise<Response> {
       request_payload: null,
       response_status: 'fail',
       response_data: null,
-      error_message: 'No autorizado: iniciá sesión para responder.',
+      error_message: guard.message,
     });
 
-    return jsonResponse(
-      buildErrorResponse<DraftResult>(
-        'No autorizado: iniciá sesión para responder.',
-      ),
-      401,
-    );
+    return jsonResponse(buildErrorResponse<DraftResult>(guard.message), guard.status);
   }
 
   let body: Partial<DraftInput> = {};

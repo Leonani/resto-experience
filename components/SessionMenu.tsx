@@ -46,7 +46,12 @@ export function SessionMenu({ restaurantName }: { restaurantName?: string }) {
             {restaurantName ?? "Resto Experience"} · Owner
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={logout} aria-label="Salir">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => void logout()}
+          aria-label="Salir"
+        >
           <LogOut className="size-4" aria-hidden="true" />
         </Button>
       </div>

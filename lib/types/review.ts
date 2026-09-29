@@ -35,7 +35,8 @@ export type AuditAction =
   | 'SKIP_REVIEW'
   | 'GENERATE_AI_DRAFT'
   | 'SAVE_REPLY'
-  | 'AUTH_LOGIN';
+  | 'AUTH_LOGIN'
+  | 'AUTH_LOGOUT';
 
 /** Origen técnico de la operación. */
 export type AuditMethod = 'POST' | 'SERVER_ACTION' | 'SCRIPT';

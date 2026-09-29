@@ -26,18 +26,19 @@
 │  <ReviewCard>         feed derecho, uncontrolled + fetch a /api/*     │
 └───────────────────────────────────────────────────────────────────────┘
             │ POST (solo mutaciones)
-            │ Authorization: Bearer <token> (si hay sesión)
+            │ Cookie: reviews_session (HttpOnly, la manda el navegador)
             ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │  SERVIDOR (Node runtime)                                             │
 │                                                                       │
-│  app/api/auth/login/route.ts      valida credenciales (auth_users) → token│
-│  app/api/auth/verify/route.ts     valida la sesión (sin auditar)      │
+│  app/api/auth/login/route.ts      valida (auth_users) → emite sesión  │
+│  app/api/auth/verify/route.ts     resuelve la cookie (sin auditar)    │
+│  app/api/auth/logout/route.ts     revoca la sesión + audita           │
 │  app/api/import/route.ts          token x-import-token (destructivo)  │
-│  app/api/generate-draft/route.ts  Bearer ← REVIEWS_REPLY_TOKEN        │
-│  app/api/save-reply/route.ts      Bearer ← REVIEWS_REPLY_TOKEN        │
+│  app/api/generate-draft/route.ts  sesión + chequeo de origen (CSRF)   │
+│  app/api/save-reply/route.ts      sesión + chequeo de origen (CSRF)   │
 │    │                                                                  │
-│    ├─ verifyPassword() / readAuthConfig()      ← fail-closed           │
+│    ├─ verifyPassword() / requireSession()       ← fail-closed          │
 │    ├─ createClientAdmin()   ← SUPABASE_SERVICE_ROLE_KEY               │
 │    ├─ logAuditEvent()       ← SIEMPRE, éxito y fallo                 │
 │    └─ buildSuccess/ErrorResponse()  ← contrato único                  │
@@ -47,7 +48,8 @@
 ┌───────────────────────────────────────────────────────────────────────┐
 │  SUPABASE (PostgreSQL + RLS)                                         │
 │  restaurants ──< locations ──< reviews                               │
-│  auth_users (hash scrypt) · audit_logs (independiente)               │
+│  auth_users (hash scrypt) · auth_sessions (hash sha256)               │
+│  audit_logs (independiente)                                          │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,11 +125,12 @@ app/
   page.tsx                      Server Component. Lee searchParams.
   api/
     auth/
-      login/route.ts            POST: valida credenciales → token
-      verify/route.ts           POST: valida la sesión guardada
+      login/route.ts            POST: valida credenciales → emite sesión (cookie)
+      verify/route.ts           POST: resuelve la cookie → usuario y expiración
+      logout/route.ts           POST: revoca la sesión + limpia la cookie
     import/route.ts             POST: seed catálogo + upsert reseñas
-    generate-draft/route.ts     POST: borrador IA (Bearer)
-    save-reply/route.ts         POST: persistir respuesta (Bearer)
+    generate-draft/route.ts     POST: borrador IA (sesión + CSRF)
+    save-reply/route.ts         POST: persistir respuesta (sesión + CSRF)
 components/
   AuthGate.tsx                  Client. Provider de sesión + spinner de verificación.
   Sidebar.tsx                   Server. Sidebar fija de escritorio (oculta en
@@ -139,7 +142,7 @@ components/
   SessionMenu.tsx               Client. Login/pastilla de sesión (footer de la sidebar).
   SiteHeader.tsx                Server. Solo título "Reseñas y Métricas".
   KPICards.tsx                  Server. Fila de 4 KPIs globales (overall summary).
-  LoginForm.tsx                 Client. Formulario de login (en Dialog del header).
+  LoginForm.tsx                 Client. Formulario de login (en el Dialog de SessionMenu).
   FilterBar.tsx                 Client. Escribe en la URL.
   MetricsDateFilter.tsx          Client. Rango de fechas de las MÉTRICAS
                                   (desde/hasta); default = todo el histórico.
@@ -152,7 +155,9 @@ components/
   EmptyState.tsx                Sin datos / sin resultados.
   ui/                           Componentes shadcn (no tocar)
 lib/
-  auth.ts                       Autenticación pura (testeable, sin server-only)
+  auth.ts                       Criptografía de sesión y cookies (puro, testeable)
+  session.ts                    Acceso a auth_sessions (cliente inyectado, testeable)
+  session-guard.ts              Pegamento Request → sesión (server-only)
   types/
     api.ts                      ApiResponse<T> + builders
     review.ts                   tipos del dominio
@@ -313,7 +318,8 @@ Por eso RN-07 especifica que se audita el fallo, no solo el éxito.
 | `SKIP_REVIEW` | Cada registro descartado | `reviews` | `rv-301` |
 | `GENERATE_AI_DRAFT` | Cada intento de borrador | `reviews` | `rv-101` |
 | `SAVE_REPLY` | Cada intento de guardado | `reviews` | `rv-101` |
-| `AUTH_LOGIN` | Cada intento de login (éxito y fallo) | `auth` | `null` |
+| `AUTH_LOGIN` | Cada intento de login (éxito y fallo) | `auth` | usuario si se identificó |
+| `AUTH_LOGOUT` | Cada cierre de sesión | `auth` | usuario si se sabía |
 
 `method` documenta el origen técnico, no la acción de negocio: `POST` para Route Handlers,
 `SERVER_ACTION` para Server Actions, `SCRIPT` para el `verify-metrics.ts`. La auditoría
@@ -337,11 +343,12 @@ compartible: exige sesión.
 | Recurso | Público | Protegido |
 |---|---|---|
 | `GET /` (métricas, filtros, listado) | Sí | — |
-| `POST /api/generate-draft` | — | `Authorization: Bearer <token>` |
-| `POST /api/save-reply` | — | `Authorization: Bearer <token>` |
+| `POST /api/generate-draft` | — | Cookie de sesión + chequeo de origen |
+| `POST /api/save-reply` | — | Cookie de sesión + chequeo de origen |
+| `POST /api/auth/logout` | — | Idempotente, no rechaza |
 | `POST /api/import` | — | `x-import-token` (ya existía) |
 
-### Credenciales en la base, token en el entorno
+### Credenciales en la base, sesiones en la base
 
 Las credenciales del login (usuario + contraseña) viven en la tabla `auth_users` de
 Supabase, con la contraseña hasheada con **scrypt** (`scrypt$salt$hash`, generada por
@@ -350,46 +357,77 @@ hash rápido convierte una contraseña en algo decodificable por fuerza bruta. L
 tiene políticas de RLS: ni la anon key ni `authenticated` pueden leerla, y no se audita su
 lectura; solo la service role la consulta desde el login y el verify.
 
-`REVIEWS_REPLY_TOKEN` sí vive en el entorno (sin `NEXT_PUBLIC_`): es el secreto de sesión
-que el login devuelve y que las escrituras exigen como Bearer. Por eso `lib/auth.ts` es
-deliberadamente **sin `server-only`**: así se testea con vitest igual que `lib/draft/budget.ts`,
-y si un Client Component lo importara por error, `readAuthConfig` leería una variable vacía →
-`null` → fail-closed. El sacrificio de la guarda de bundler se paga con la regla de
-dependencia de la sección 3.
+La sesión **tampoco** es un secreto del entorno. `POST /api/auth/login` emite un token
+opaco de 32 bytes en base64url y guarda **solo su SHA-256** en `auth_sessions`. Comprarar
+un hash y no el valor es lo correcto acá, al revés que con contraseñas: el token tiene 256
+bits de entropía, así que no hay fuerza bruta que hacer y SHA-256 alcanza. La tabla suma
+tres cosas que el modelo anterior no tenía:
+
+| Columna | Qué resuelve |
+|---|---|
+| `expires_at` | Expiración real. Antes el token de entorno duraba para siempre. |
+| `revoked_at` | Logout de verdad. Antes "salir" borraba una clave del navegador y el token seguía sirviendo. |
+| `username` | Quién hizo cada escritura, en la auditoría. |
+
+El token viaja en una cookie `HttpOnly` (`reviews_session`), nunca en `localStorage` ni en
+un header `Authorization`. Con `HttpOnly` el JavaScript de la página no puede leerlo, así
+que un XSS no puede robar la sesión. Por eso `lib/auth.ts` es deliberadamente **sin
+`server-only`** (se testea con vitest igual que `lib/draft/budget.ts`) y la lógica de
+criptografía no toca la base: esa parte vive en `lib/session.ts`, que recibe el cliente
+Supabase **inyectado** para poder testearse con un fake.
 
 Flujo:
 
-1. Al abrir la app, `AuthGate` (Client Component) busca `reviews_reply_token` en
-   `localStorage` y lo valida contra `POST /api/auth/verify`. Mientras tanto muestra el
-   spinner "Verificando usuario…".
-2. Sin token (o token inválido) → `anonimo`: el dashboard se muestra completo pero sin
+1. Al abrir la app, `AuthGate` (Client Component) llama a `POST /api/auth/verify` con
+   `credentials: 'same-origin'`. No tiene token que mandar: lo manda el navegador. Mientras
+   tanto muestra el spinner "Verificando usuario…".
+2. Sin sesión (o vencida o revocada) → `anonimo`: el dashboard se muestra completo pero sin
    botones de escritura; `ReviewCard` avisa "Modo lectura". El botón de login está en el
-   header (`SiteHeader`), junto al título.
+   footer de la sidebar (`SessionMenu`).
 3. `POST /api/auth/login` consulta `auth_users` con la service role y verifica la contraseña
    con `verifyPassword()` (scrypt + `timingSafeEqual`, comparación a tiempo constante). Éxito →
-   devuelve el token del entorno, que el cliente guarda y usa como Bearer.
+   inserta la fila en `auth_sessions` y responde con la cookie. El cuerpo de la respuesta
+   lleva `{ user, expiresAt }` y **nunca** el token.
 4. `save-reply` y `generate-draft` hacen el guard **antes de parsear el body**:
-   `readAuthConfig()` + `isReplyAuthorized()`. Rechazo → auditoría con `entity_id: null`
-   y 401 con el contrato.
+   `requireSession()`. Sin cookie → 401 sin tocar la base; origen incorrecto → 403; sesión
+   no válida → 401. Rechazo → auditoría y respuesta con el contrato.
 
-El login **se audita** (éxito y fallo, `AUTH_LOGIN`) porque un intento fallido sin log es
-indistinguible de que nadie tocó la app — la misma razón de siempre. `verify` **no** se
-audita: no es una mutación. Tampoco se audita ni se loguea la contraseña: `request_payload`
-del login lleva solo el username.
+El login **se audita** (éxito y fallo, `AUTH_LOGIN`) y el logout también (`AUTH_LOGOUT`),
+porque un intento fallido sin log es indistinguible de que nadie tocó la app — la misma
+razón de siempre. `verify` **no** se audita: no es una mutación. Tampoco se audita ni se
+loguea la contraseña: `request_payload` del login lleva solo el username.
+
+### CSRF: la cookie la manda el navegador, el origen es la frontera
+
+Una cookie `SameSite=Lax` ya bloquea el POST cross-site, pero el chequeo de origen se
+mantiene como defensa en profundidad (`isSameOrigin` en `lib/auth.ts`), en este orden:
+
+1. `Sec-Fetch-Site` si viene: solo se acepta `same-origin`. **`same-site` no**, porque en
+   Vercel los previews comparten sitio (`*.vercel.app`) y eso habilitaría a un preview ajeno a
+   mandarnos un POST con la cookie.
+2. `Origin`, que manda todo POST cross-site moderno.
+3. `Referer` como respaldo para navegadores viejos. Un `Referer` malformado se rechaza.
+4. Si no hay ninguno, se **permite**: es un cliente no-navegador (curl, tests) y no puede ser
+   un ataque CSRF, que necesita un navegador.
+
+Con `APP_ORIGIN` configurado gana ese valor; si no, se compara contra el origin de la propia
+request, que en Vercel ya es el público.
 
 ### Fail-closed
 
-Sin `REVIEWS_REPLY_TOKEN` en el servidor, un header ausente, un token inválido o un usuario
-sin fila en `auth_users`, la escritura se rechaza. No existe un estado degradado en el que un
-olvido de entorno o de datos deje pasar silenciosamente una mutación: la app se vuelve de
-solo lectura y el login responde 503 (sin token configurado) o 401 (credenciales o usuario
-inexistentes).
+Sin cookie, con token inválido o malformado, con la sesión vencida o revocada, o con un
+origen que no corresponde, la escritura se rechaza. No existe un estado degradado en el que
+un olvido de entorno o de datos deje pasar silenciosamente una mutación: la app se vuelve
+de solo lectura y el login responde 401 (credenciales incorrectas) o 500 (si la sesión no se
+puede crear — nunca un 200 con una sesión que después no sirve).
 
-### `localStorage`, no cookie
+`SESSION_TTL_HOURS` es opcional y vale 8 h por defecto; un valor inválido, cero o negativo
+cae al default en vez de romper el login, y hay un tope de 30 días aunque se pida más. El
+`CHECK (expires_at > created_at)` en la tabla impide que una sesión nazca vencida por un
+bug de aplicación.
 
-`REVIEWS_REPLY_TOKEN` no tiene `NEXT_PUBLIC_`, así que el servidor nunca emite el token en
-el HTML; guardarlo en una cookie conllevaría el riesgo de exponerlo. `localStorage` + Bearer
-por request es el camino más simple con el token siempre fuera del render.
+`Secure` se manda solo en producción: en `http://localhost` el navegador descarta la cookie
+y no se podría ni probar el login en dev.
 
 ---
 
@@ -495,7 +533,7 @@ reseñas que recibimos, respondimos 2" es la pregunta que hace el gerente.
 | `calculateLocationSummary` pura | Cálculo dentro del Server Component | Los casos sucios son testeables sin base de datos |
 | Verificación por FK en BD | Solo validación en TypeScript | La BD es el último línea de defensa; TS no la reemplaza |
 | Sesión de escritura single user en `.env` | Auth multi-usuario / Supabase Auth | Un gerente, una sesión; proteger las mutaciones no requiere infraestructura de identidades |
-| Listado público + escritura con Bearer | Todo el dashboard autenticado | Los filtros en la URL son compartibles (sección 1); escribir no tiene por qué serlo |
+| Listado público + escritura con sesión | Todo el dashboard autenticado | Los filtros en la URL son compartibles (sección 1); escribir no tiene por qué serlo |
 
 ---
 
@@ -504,7 +542,7 @@ reseñas que recibimos, respondimos 2" es la pregunta que hace el gerente.
 | Riesgo | Impacto | Mitigación en v1 |
 |---|---|---|
 | Política `reviews FOR UPDATE USING (true)` | La anon key puede escribir respuestas | Documentado en el README. Aceptable para demo, **bloqueante para producción** |
-| Múltiples usuarios comparten un único token | Una sesión es un solo par usuario/token | Aceptado: un gerente, una sesión. RRHH sería otro proyecto |
+| Múltiples usuarios comparten una única sesión | Cada fila de `auth_sessions` es un par usuario/token | Aceptado: un gerente. La tabla ya soporta N usuarios sin migración |
 | Importación en memoria | Un JSON muy grande se carga entero en el serverless | El dataset es de ~10 KB. A escala se procesaría por lotes |
 | Sin rate limit en los endpoints | Endpoints POST públicos | Fuera de alcance declarado |
 | Un único `await` por lote | Los upsert son secuenciales | Aceptable a este volumen; documentar si crece |

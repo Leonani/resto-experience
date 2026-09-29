@@ -39,12 +39,15 @@ curl -X POST http://localhost:3000/api/import \
 | `SUPABASE_SERVICE_ROLE_KEY` | Escrituras. Bypasea RLS | **Nunca** |
 | `IMPORT_TOKEN` | Habilita `POST /api/import` | **Nunca** |
 | `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL` | Proveedor de borradores | **Nunca** |
-| `REVIEWS_REPLY_TOKEN` | Token de sesión que entrega el login y exigen las escrituras | **Nunca** |
+| `SESSION_TTL_HOURS` | Duración de la sesión (opcional, default 8 h) | **Nunca** |
+| `APP_ORIGIN` | Origin permitido por el chequeo de CSRF (opcional) | **Nunca** |
 
-El **usuario y la contraseña no viven en el entorno**: viven en la tabla
-`auth_users` de Supabase, con la contraseña hasheada con **scrypt** (ver
-`supabase/schema.sql`). La tabla sin políticas de RLS: solo la service role
-puede leerla. Generar un `IMPORT_TOKEN`:
+El **usuario, la contraseña y la sesión tampoco viven en el entorno**: viven en
+`auth_users` (contraseña con hash **scrypt**) y `auth_sessions` (solo el
+SHA-256 del token). El token viaja en una cookie `HttpOnly` que el navegador
+adjunta solo, así que no hay ningún secreto de sesión que configurar. La tabla
+`auth_sessions`, sin políticas de RLS, como `auth_users`: solo la service role
+puede tocarla. Generar un `IMPORT_TOKEN`:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -61,15 +64,15 @@ la bandeja, que vive en la tabla `auth_users` de Supabase:
 | usuario (`username`) | `gerente` |
 | contraseña | `Password123` |
 
-En la app: botón **"Iniciar sesión"** (arriba a la derecha, en el header junto al
-título) → usuario `gerente`, contraseña `Password123`. Sin sesión, la bandeja se ve
-igual pero en modo lectura (las tarjetas no muestran botones de escritura).
+En la app: botón **"Iniciar sesión"** (en el footer de la sidebar) → usuario
+`gerente`, contraseña `Password123`. Sin sesión, la bandeja se ve igual pero en
+modo lectura (las tarjetas no muestran botones de escritura).
 
 **Advertencia:** `Password123` es una contraseña de demo para que cualquiera
 pruebe, no para producción. Antes de desplegar hay que cambiarla (re-hashearla
-con `hashPassword()` de `lib/auth.ts` y actualizar `auth_users`) y generar un
-`REVIEWS_REPLY_TOKEN` nuevo. Sin `REVIEWS_REPLY_TOKEN` las escrituras quedan
-cerradas (fail-closed): nadie puede generar borradores ni guardar respuestas.
+con `hashPassword()` de `lib/auth.ts` y actualizar `auth_users`) y borrar las
+sesiones de demo con `delete from auth_sessions`. No hay token que rotar: cada
+login emite el suyo y caduca a las 8 h por defecto (`SESSION_TTL_HOURS`).
 
 ---
 
@@ -294,12 +297,13 @@ resto del objeto, que es lo que produce los estados ambiguos.
 | `/api/import` | — | Requiere header `x-import-token`. Idempotente. |
 | `/api/generate-draft` | `{ reviewId }` | **Nunca persiste.** El borrador vive en el cliente. |
 | `/api/save-reply` | `{ reviewId, replyText }` | Rechaza texto vacío. Es el único camino que escribe `reply_text`. |
-| `/api/auth/login` | `{ username, password }` | Devuelve el token de sesión. Audita el intento (nunca la contraseña). |
-| `/api/auth/verify` | — | Valida el Bearer de la sesión. No audita: es una verificación de estado. |
+| `/api/auth/login` | `{ username, password }` | Emite la sesión en una cookie `HttpOnly`. Audita el intento (nunca la contraseña). |
+| `/api/auth/verify` | — | Resuelve la cookie a `{ user, expiresAt }`. No audita: es una verificación de estado. |
+| `/api/auth/logout` | — | Revoca la sesión y limpia la cookie. Idempotente. |
 
-Las escrituras (`/api/generate-draft`, `/api/save-reply`) y `/api/auth/verify`
-exigen el header `Authorization: Bearer <REVIEWS_REPLY_TOKEN>`. Sin él
-responden `401`.
+Las escrituras (`/api/generate-draft`, `/api/save-reply`) exigen la cookie de
+sesión y que la request venga del mismo origen. Sin sesión responden `401`; con
+un origen incorrecto, `403`.
 
 | Situación | HTTP | `success` |
 |---|---|---|

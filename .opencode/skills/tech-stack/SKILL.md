@@ -37,19 +37,31 @@ El status HTTP acompana al contrato: `200` con `success: 'ok'`, `4xx`/`5xx` con
 
 - `SUPABASE_SERVICE_ROLE_KEY` se lee **exclusivamente** en el servidor.
 - La API Key del LLM se lee **exclusivamente** en el servidor, dentro del route handler.
-- `REVIEWS_REPLY_TOKEN` se lee **exclusivamente** en el servidor. No lleva `NEXT_PUBLIC_`.
-- El usuario y la contraseña de la sesión viven en la tabla `auth_users` de Supabase con la
-  contraseña hasheada con **scrypt** (`hashPassword`/`verifyPassword` de `lib/auth.ts`), no
-  en el entorno. La tabla no tiene políticas de RLS: solo la service role la consulta desde
-  los routes `/api/auth/login` y `/api/auth/verify`.
-- Al cliente solo sale lo que lleva prefijo `NEXT_PUBLIC_`.
+- El usuario, la contraseña y la sesión de escritura viven en Supabase, no en el entorno.
+  No hay ningun token de sesion en variables de entorno.
+- El usuario y la contraseña viven en la tabla `auth_users` con la contraseña hasheada con
+  **scrypt** (`hashPassword`/`verifyPassword` de `lib/auth.ts`). Sin políticas de RLS: solo la
+  service role la consulta desde `/api/auth/login` y `/api/auth/verify`.
+- La sesion vive en `auth_sessions`: token opaco de 32 bytes del que solo se guarda el
+  **SHA-256** (`hashSessionToken`), con `expires_at` y `revoked_at`. Sin políticas de RLS.
+- El token viaja en la cookie `reviews_session` con `HttpOnly` y `SameSite=Lax`, nunca en
+  `localStorage` ni en un header `Authorization`. Por diseño `HttpOnly` impide que un XSS
+  lo lea. `Secure` solo en producción (en `localhost` el navegador la descartaría).
+- Al cliente solo sale lo que lleva prefijo `NEXT_PUBLIC_`, más `{ user, expiresAt }` de
+  login/verify. El token nunca aparece en un cuerpo de respuesta.
 - Prohibido el fallback de la service role a la anon key. Una escritura que degrada
   permisos en silencio rompe la trazabilidad sin avisar: si falta la key, fallar.
-- Las escrituras (`save-reply`, `generate-draft`) exigen `Authorization: Bearer <token>`.
-  `lib/auth.ts` es puro (sin `server-only`) para testearlo con vitest; la protección viene
-  de que `readAuthConfig` devuelve `null` sin `REVIEWS_REPLY_TOKEN` (fail-closed) y de que
-  nunca se importa desde un Client Component. Regla de revisión: ningún Client Component
-  importa de `lib/auth`; usar el contexto de `AuthGate` (`useAuth`).
+- Las escrituras (`save-reply`, `generate-draft`) exigen sesion **y** origen valido
+  (`requireSession` de `lib/session-guard.ts`, `server-only`). Sin cookie 401, con origen
+  ajeno 403. La cookie la adjunta el navegador, asi que el chequeo de origen es la
+  frontera CSRF: `Sec-Fetch-Site` solo si es `same-origin`, despues `Origin`, despues
+  `Referer`; si no hay ninguno se permite (cliente no-navegador, no puede ser CSRF).
+- Reparto para poder testear: `lib/auth.ts` es criptografia y cookies puras (sin
+  `server-only`); `lib/session.ts` recibe el cliente de Supabase **inyectado**, asi que se
+  testea con un fake sin red. `lib/session-guard.ts` es el unico que pega `Request` con la
+  base y lleva `server-only`. Regla de revision: ningun Client Component importa de
+  `lib/session` ni `lib/session-guard`; usar el contexto de `AuthGate` (`useAuth`).
+- `verify` es una lectura de estado y no se audita. `login` (exito y fallo) y `logout` si.
 - Usar la API `taint` de Next.js si un valor de servidor se acerca a un Client Component.
 
 ### 2.3 Trazabilidad
@@ -58,7 +70,7 @@ Toda operacion que cree, modifique o falle escribe en `audit_logs` usando
 `logAuditEvent` de `lib/audit.ts`.
 
 Acciones: `IMPORT_REVIEWS`, `IMPORT_REPLY`, `SKIP_REVIEW`, `GENERATE_AI_DRAFT`,
-`SAVE_REPLY`, `AUTH_LOGIN`.
+`SAVE_REPLY`, `AUTH_LOGIN`, `AUTH_LOGOUT`.
 
 - `method`: `'POST'` para Route Handlers, `'SERVER_ACTION'` para Server Actions
 - `response_status`: `'ok'` | `'fail'`
