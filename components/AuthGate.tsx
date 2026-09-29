@@ -14,14 +14,15 @@ import type { ApiResponse, LoginResult, VerifyResult } from "@/lib/types/api";
  * muestra el dashboard igual en ambos casos.
  *
  * Cuándo se muestra la UI de login (botón/panel/pastilla) lo decide
- * `SiteHeader`, que vive DENTRO de este provider y consume `useAuth()`. Acá no
- * hay botones flotantes: el login está en el header junto al título.
+ * `SessionMenu`, que vive en el footer de la sidebar DENTRO de este provider
+ * y consume `useAuth()`. Acá no hay botones flotantes: el login está en la
+ * sidebar, junto al perfil del usuario.
  *
  * Estados:
  *   - `verificando`: spinner "Verificando usuario…" mientras se valida el token
  *     contra `/api/auth/verify`.
- *   - `anonimo`: dashboard en modo lectura; `SiteHeader` muestra "Iniciar sesión".
- *   - `autenticado`: escrituras habilitadas; `SiteHeader` muestra la pastilla.
+ *   - `anonimo`: dashboard en modo lectura; `SessionMenu` muestra "Iniciar sesión".
+ *   - `autenticado`: escrituras habilitadas; `SessionMenu` muestra la pastilla.
  *
  * El token vive en `localStorage` (`reviews_reply_token`). No está en una
  * cookie a propósito: `REVIEWS_REPLY_TOKEN` no lleva `NEXT_PUBLIC_`, así que el

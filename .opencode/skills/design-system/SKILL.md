@@ -15,7 +15,8 @@ se oculta (`hidden lg:flex`) y todo queda en una columna.
 Orden de la columna de contenido (Server Component `page.tsx`):
 
 1. **`SiteHeader`**: ícono `Star` en caja negra `rounded-2xl`, título
-   **"Reseñas y Métricas"** + subtítulo, auth a la derecha (ver §7.2/7.3)
+   **"Reseñas y Métricas"** + subtítulo. Es solo título: la sesión (login /
+   pastilla) ya NO vive acá, está en el footer de la sidebar (ver §7.2/7.3)
 2. **Banner oscuro** `bg-[#0f172a]` texto blanco `rounded-2xl`: la
    **"Reseñas · Hoy & Este Mes"** con el badge `{todayCount} hoy`
    (`data-testid="resenas-hoy"`). Es un conteo REAL de `published_at` del día
@@ -52,8 +53,11 @@ border-r`. Contenido:
   `rounded-xl`: `Reviews` es el ítem **activo** (`bg-zinc-900 text-white`),
   `Reservations` lleva la píldora `bg-slate-100` del diseño de referencia,
   `Social Media` un badge `Live`. Los ítems no navegan todavía: es maqueta
-- Footer: perfil del local (`bg-slate-50`, avatar circular con inicial y nombre
-  del primer restaurante o "Resto Experience" + "Owner")
+- Footer: **sesión del usuario** (`components/SessionMenu.tsx`, Client): botón
+  "Iniciar sesión" (`data-testid="login-trigger"`) que abre el Dialog con el
+  `LoginForm`, o pastilla `data-testid="session-pill"` con avatar de inicial +
+  nombre de usuario + botón Salir. La sesión vive acá, junto al perfil, NO en
+  el header
 
 ## 1. Jerarquía
 
@@ -247,9 +251,9 @@ sesión. Solo escribir lo exige. `AuthGate.tsx` (Client Component envuelve el `m
   Responder, Editar, Guardar, Cancelar). En su lugar, el `footer` muestra un texto
   `text-xs text-slate-400`:
   **"Modo lectura. Iniciá sesión para generar borradores y contestar."**
-- El login vive en `SiteHeader.tsx` (derecha del header, junto al título): botón
-  "Iniciar sesión" (variant `outline`, ícono `Sparkles`, `data-testid="login-trigger"`,
-  sombra) que abre un `Dialog` con:
+- El login vive en `SessionMenu.tsx` (footer de la sidebar, donde va el
+  usuario): botón "Iniciar sesión" (variant `outline`, ícono `Sparkles`,
+  `data-testid="login-trigger"`, ancho completo) que abre un `Dialog` con:
   - Título **"Iniciar sesión"**
   - Description **"El listado y los filtros son públicos. La sesión habilita generar
     borradores y contestar reseñas."**
@@ -260,8 +264,10 @@ sesión. Solo escribir lo exige. `AuthGate.tsx` (Client Component envuelve el `m
 
 ### 7.3 Sesión iniciada
 
-- Pastilla en el header (`data-testid="session-pill"`, borde `border-slate-200`, fondo
-  blanco, sombra): **"Sesión: {user}"** + botón ghost "Salir" (ícono `LogOut`).
+- Pastilla en el footer de la sidebar (`data-testid="session-pill"`, `rounded-xl`
+  `bg-slate-50` borde `border-slate-100`): avatar circular con la inicial del
+  usuario, **nombre del usuario** + restaurante/owner al lado, y botón ghost
+  "Salir" (ícono `LogOut`).
 - Los botones de escritura vuelven a aparecer en cada `ReviewCard`.
 
 Reglas de honestidad heredadas del resto del sistema: un 401 de `save-reply` o
