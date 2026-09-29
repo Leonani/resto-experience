@@ -17,8 +17,11 @@ Orden de la columna de contenido (Server Component `page.tsx`):
 1. **`SiteHeader`**: ícono `Star` en caja negra `rounded-2xl`, título
    **"Reseñas y Métricas"** + subtítulo. Es solo título: la sesión (login /
    pastilla) ya NO vive acá, está en el footer de la sidebar (ver §7.2/7.3)
-2. **Sección "Métricas"**: rótulo `h2` visible
-   (`text-lg font-semibold tracking-tight text-slate-900`) + los
+2. **Contenedor "Métricas"**: misma piel oscura que el banner de abajo
+   (`bg-[#0f172a] text-white rounded-2xl px-5 py-4 shadow-sm`), ícono `Target`
+   en caja `bg-white/10 text-sky-300`, rótulo **"Métricas"** (`text-sm
+   font-semibold tracking-wide`) y a la derecha el total real
+   (`{totalReviews} reseñas en total`) + los
    **`KPICards`**: grid `sm:grid-cols-2 xl:grid-cols-4`. Toda métrica sale de
    `calculateOverallSummary` (pura, testeada). **Nunca** fabricar comparativos
    ("+12% vs previo") ni inventar el promedio: sin reseñas calificadas → "Sin
