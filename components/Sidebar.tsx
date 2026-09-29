@@ -10,6 +10,8 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 
+import { SessionMenu } from "@/components/SessionMenu";
+
 /**
  * Sidebar de navegación del panel. Es una pieza visual del shell: los ítems no
  * son navegables todavía, pero Reviews (la pantalla actual) se marca activo y
@@ -56,18 +58,10 @@ export function Sidebar({ restaurantName }: { restaurantName?: string }) {
           </NavSection>
         </nav>
 
-        {/* Perfil del local */}
-        <div className="mt-4 flex items-center gap-3 rounded-xl bg-slate-50 p-3 border border-slate-100">
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-zinc-800 text-xs font-semibold text-white">
-            {restaurantName?.charAt(0).toUpperCase() ?? "R"}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900">
-              {restaurantName ?? "Resto Experience"}
-            </p>
-            <p className="text-xs text-slate-500">Owner</p>
-          </div>
-        </div>
+        {/* Sesión del usuario: login o usuario logueado */}
+        <footer className="mt-4 border-t border-slate-100 pt-4">
+          <SessionMenu restaurantName={restaurantName} />
+        </footer>
       </div>
     </aside>
   );
