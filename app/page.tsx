@@ -1,4 +1,4 @@
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Target } from "lucide-react";
 import { Suspense } from "react";
 
 import { AuthGate } from "@/components/AuthGate";
@@ -134,9 +134,19 @@ export default async function Page({ searchParams }: PageProps<"/">) {
             <>
               {/* Métricas globales */}
               <section className="flex flex-col gap-3" aria-label="Métricas">
-                <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                  Métricas
-                </h2>
+                <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#0f172a] px-5 py-4 text-white shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="grid size-8 place-items-center rounded-lg bg-white/10 text-sky-300">
+                      <Target className="size-4" aria-hidden="true" />
+                    </span>
+                    <h2 className="text-sm font-semibold tracking-wide">
+                      Métricas
+                    </h2>
+                  </div>
+                  <span className="text-sm text-white/60">
+                    {overall.totalReviews} reseñas en total
+                  </span>
+                </div>
                 <KPICards overall={overall} />
               </section>
 
