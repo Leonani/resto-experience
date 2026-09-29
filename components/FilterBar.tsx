@@ -203,16 +203,16 @@ export function FilterBar({
           El orden mostrado es el real (compareReviewsByPriority), nunca el de
           llegada: el subtítulo lo declara en vez de fingir un feed cronológico. */}
       <div className="ml-auto flex flex-col items-end gap-1.5">
-        {hayFiltros && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearAll}
-            className="h-auto px-1 py-0.5 text-xs text-slate-500"
-          >
-            Limpiar filtros
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearAll}
+          disabled={!hayFiltros}
+          className="h-auto px-1 py-0.5 text-xs text-slate-500"
+          data-testid="limpiar-filtros"
+        >
+          Limpiar filtros
+        </Button>
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-slate-900">Feed de reseñas</h2>
           <span
