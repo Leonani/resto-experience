@@ -26,7 +26,7 @@ curl -X POST http://localhost:3000/api/import \
 ```
 
 El endpoint **no recibe un body**: lee `data/reviews.json` del disco, con el path
-fijo en `app/api/import/route.ts:35`. Para importar otro dataset, reemplazá ese
+fijo en `app/api/import/route.ts` (constante `filePath`). Para importar otro dataset, reemplazá ese
 archivo y volvé a correr el mismo `curl`. Es idempotente, así que se puede correr
 las veces que haga falta.
 
@@ -87,7 +87,7 @@ login emite el suyo y caduca a las 8 h por defecto (`SESSION_TTL_HOURS`).
 |---|---|
 | `pnpm dev` | Servidor de desarrollo |
 | `pnpm build` | Build de producción |
-| `pnpm test` | Suite de Vitest (118 tests) |
+| `pnpm test` | Suite de Vitest (140 tests) |
 | `pnpm verify:metrics` | Verifica las métricas contra la tabla de referencia |
 | `pnpm typecheck` | Genera los tipos de ruta de Next y corre `tsc` |
 | `pnpm lint` | ESLint |
