@@ -150,8 +150,9 @@ export default async function Page({ searchParams }: PageProps<"/">) {
                 <KPICards overall={overall} />
               </section>
 
-              {/* Gráficos: evolución temporal + bento por sede */}
-              <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+              {/* Gráficos: evolución temporal arriba a ancho completo, bento de
+                  donas abajo ocupando todo el ancho (3 tarjetas en fila) */}
+              <div className="flex flex-col gap-6">
                 <EvolutionChart data={serieTemporal} />
 
                 <SummaryHeader
