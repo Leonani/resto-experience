@@ -37,8 +37,9 @@ Orden de la columna de contenido (Server Component `page.tsx`):
       bento del `SummaryHeader` (§4.1) abajo
     - Derecha (feed): solo los `ReviewCard` o el `EmptyState` (la cabecera ya
       vive en la card de filtros). El feed **nunca estira la página más que los
-      gráficos**: es un contenedor `lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]
-      lg:overflow-y-auto` con scroll propio para moverse entre reseñas.
+      gráficos**: es un contenedor `lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem-110px)]
+      lg:overflow-y-auto` con scroll propio para moverse entre reseñas (y ~110px
+      más corto que la altura de la ventana para no pisar el borde inferior).
 
 Referencia estética común: tarjetas **blancas** `rounded-2xl border-slate-200
 shadow-sm` (incluida la primitiva `ui/card`), `rounded-xl` para elementos
