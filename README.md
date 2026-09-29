@@ -25,6 +25,11 @@ curl -X POST http://localhost:3000/api/import \
   -H "x-import-token: <tu IMPORT_TOKEN>"
 ```
 
+El endpoint **no recibe un body**: lee `data/reviews.json` del disco, con el path
+fijo en `app/api/import/route.ts:35`. Para importar otro dataset, reemplazá ese
+archivo y volvé a correr el mismo `curl`. Es idempotente, así que se puede correr
+las veces que haga falta.
+
 ### Requisitos
 
 - Node 22 o superior
@@ -82,7 +87,7 @@ login emite el suyo y caduca a las 8 h por defecto (`SESSION_TTL_HOURS`).
 |---|---|
 | `pnpm dev` | Servidor de desarrollo |
 | `pnpm build` | Build de producción |
-| `pnpm test` | Suite de Vitest (56 tests) |
+| `pnpm test` | Suite de Vitest (118 tests) |
 | `pnpm verify:metrics` | Verifica las métricas contra la tabla de referencia |
 | `pnpm typecheck` | Genera los tipos de ruta de Next y corre `tsc` |
 | `pnpm lint` | ESLint |
@@ -163,6 +168,33 @@ El promedio muestra **`Sin datos`**. Nunca `0.0`.
 `0.0` es una afirmación falsa: dice "recibimos reseñas y todas fueron de 0
 estrellas", cuando la verdad es "no sabemos". Un gerente que ve `0.0` en Belgrano
 toma una decisión comercial basada en nada.
+
+### La importación acumula: no reemplaza
+
+`POST /api/import` hace un *upsert* por `id`. Correrlo dos veces con el mismo
+archivo deja la base igual, y correrlo con un archivo nuevo **agrega**, no
+sustituye: las reseñas que estaban en la base y ya no están en el JSON **se
+quedan**, con todo lo que tengan encima.
+
+Eso es deliberado. Los datos de la app no deberían desaparecer porque alguien
+cambió un archivo, y es lo que hace que reimportar sea seguro.
+
+**El riesgo concreto:** para poder preservar las respuestas ya escritas, el
+importador primero lee cuáles hay guardadas. Si esa lectura devuelve algo que no
+sea un error explícito — por ejemplo una respuesta vacía en lugar de las filas —
+el importador la interpreta como "la base no tiene respuestas" y **sobrescribe el
+`reply_text` de cada reseña con el valor del JSON**. No hay error, no hay aviso en
+la respuesta, y el trabajo del gerente desaparece en silencio.
+
+Por eso, si vas a reemplazar `data/reviews.json` a mano:
+
+1. Hacé backup de las respuestas primero (`select id, reply_text from reviews`).
+2. Verificá que el archivo no traiga un `reply` para reseñas que ya están
+   respondidas. La primera importación sí siembra las respuestas del archivo; las
+   siguientes las respetan solo si la lectura previa funcionó.
+
+Reimportar es acumulativo, así que volver a correr el `curl` con el archivo
+original **no** deshace el daño: ya se sobrescribió.
 
 ### Tabla de referencia
 
@@ -262,6 +294,7 @@ Todo, **incluidos los rechazos**:
 | `GENERATE_AI_DRAFT` | Cada intento de borrador |
 | `SAVE_REPLY` | Cada intento de guardado |
 | `AUTH_LOGIN` | Cada intento de login, con éxito o sin él |
+| `AUTH_LOGOUT` | Cada cierre de sesión |
 
 Auditar solo los éxitos deja una falla grande: una reseña descartada deja el
 mismo estado observable que una que nunca llegó. Sin log, un descarte es
@@ -294,7 +327,7 @@ resto del objeto, que es lo que produce los estados ambiguos.
 
 | Endpoint | Body | Notas |
 |---|---|---|
-| `/api/import` | — | Requiere header `x-import-token`. Idempotente. |
+| `/api/import` | — (lee `data/reviews.json` del disco) | Requiere header `x-import-token`. Idempotente. |
 | `/api/generate-draft` | `{ reviewId }` | **Nunca persiste.** El borrador vive en el cliente. |
 | `/api/save-reply` | `{ reviewId, replyText }` | Rechaza texto vacío. Es el único camino que escribe `reply_text`. |
 | `/api/auth/login` | `{ username, password }` | Emite la sesión en una cookie `HttpOnly`. Audita el intento (nunca la contraseña). |
@@ -311,7 +344,7 @@ un origen incorrecto, `403`.
 | Body inválido | 400 | `fail` |
 | Credenciales o token inválidos | 401 | `fail` |
 | Recurso inexistente | 404 | `fail` |
-| Falta configuración (escrituras sin `REVIEWS_*`, import sin `IMPORT_TOKEN`) | 503 | `fail` |
+| Falta `IMPORT_TOKEN` (import cerrado por configuración) | 503 | `fail` |
 | Error de Supabase | 500 | `fail` |
 
 Los errores de Supabase van completos a `audit_logs` y al log del servidor. Al
