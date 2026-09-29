@@ -3,10 +3,10 @@ import { Suspense } from "react";
 
 import { AuthGate } from "@/components/AuthGate";
 import { EmptyState } from "@/components/EmptyState";
+import { EvolutionChart } from "@/components/EvolutionChart";
 import { FilterBar } from "@/components/FilterBar";
 import { KPICards } from "@/components/KPICards";
 import { MobileSidebar } from "@/components/MobileSidebar";
-import { RatingsStackedChart } from "@/components/RatingsStackedChart";
 import { ReviewCard } from "@/components/ReviewCard";
 import { Sidebar } from "@/components/Sidebar";
 import { SidebarNav } from "@/components/sidebar-nav";
@@ -17,6 +17,7 @@ import {
   calculateAllSummaries,
   calculateOverallSummary,
   calculateRatingsByLocation,
+  calculateSeriesOverTime,
 } from "@/lib/metrics";
 import { compareReviewsByPriority } from "@/lib/review-order";
 import { createClientPublic } from "@/lib/supabase/server";
@@ -89,10 +90,7 @@ export default async function Page({ searchParams }: PageProps<"/">) {
     reviews,
   );
 
-  const stackedChartData = ratingsByLocation.map((by) => ({
-    locationName: locations.find((l) => l.id === by.locationId)?.name ?? by.locationId,
-    buckets: by.buckets,
-  }));
+  const serieTemporal = calculateSeriesOverTime(reviews);
 
   const visible = applyFilters(reviews, locations, restaurants, {
     sede,
@@ -164,11 +162,7 @@ export default async function Page({ searchParams }: PageProps<"/">) {
               <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
                 {/* Columna izquierda: gráficos y bento por sede */}
                 <div className="flex min-w-0 flex-col gap-6">
-                  <RatingsStackedChart
-                    data={stackedChartData}
-                    reviewCount={reviews.length}
-                    locationCount={locations.length}
-                  />
+                  <EvolutionChart data={serieTemporal} />
 
                   <SummaryHeader
                     summaries={summaries}

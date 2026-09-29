@@ -22,7 +22,7 @@
 │  <SiteHeader>      título + login/pastilla de sesión                  │
 │  <KPICards>        KPIs globales (overall summary ya calculado)       │
 │  <FilterBar> ──useRouter──> push() ──> la URL es el estado            │
-│  <RatingsStackedChart> + <SummaryHeader>  columna izquierda           │
+│  <EvolutionChart> + <SummaryHeader>  columna izquierda                 │
 │  <ReviewCard>         feed derecho, uncontrolled + fetch a /api/*     │
 └───────────────────────────────────────────────────────────────────────┘
             │ POST (solo mutaciones)
@@ -142,7 +142,8 @@ components/
   LoginForm.tsx                 Client. Formulario de login (en Dialog del header).
   FilterBar.tsx                 Client. Escribe en la URL.
   SummaryHeader.tsx             Client. Bento de métricas con mini-dona por sede.
-  RatingsStackedChart.tsx       Client. Bar chart apilado de sedes por calificación.
+  EvolutionChart.tsx            Client. Serie temporal de reseñas (área por día
+                                  + línea de promedio de estrellas).
   RatingDonut.tsx               Client. Mini-dona de composición de una sede.
   ratings-chart.ts              Paleta y claves compartidas de los gráficos.
   ReviewCard.tsx                Client. Texto, borrador, guardar.
