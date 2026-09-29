@@ -26,10 +26,11 @@ Orden de la columna de contenido (Server Component `page.tsx`):
    `calculateOverallSummary` (pura, testeada). **Nunca** fabricar comparativos
    ("+12% vs previo") ni inventar el promedio: sin reseñas calificadas → "Sin
    datos" (`data-testid="avg-sin-datos"`)
-3. **Gráficos** (una fila, `grid gap-6 lg:grid-cols-2 lg:items-start`), SIEMPRE
-   **arriba de los filtros y abajo de las métricas**: a la izquierda el
-   `EvolutionChart` (§4.0, evolución temporal) y a la derecha el bento del
-   `SummaryHeader` (§4.1)
+3. **Gráficos a ancho completo** (`flex flex-col gap-6`), SIEMPRE **arriba de los
+   filtros y abajo de las métricas**: primero el `EvolutionChart` (§4.0,
+   evolución temporal) ocupando todo el ancho del contenido, y debajo el bento
+   del `SummaryHeader` (§4.1) también a ancho completo, con sus 3 tarjetas de
+   dona en fila (`sm:grid-cols-2 lg:grid-cols-3`)
 4. **Banner oscuro** `bg-[#0f172a]` texto blanco `rounded-2xl`: la
    **"Reseñas · Hoy & Este Mes"** con el badge `{todayCount} hoy`
    (`data-testid="resenas-hoy"`), pegado **justo arriba de los filtros** (es
