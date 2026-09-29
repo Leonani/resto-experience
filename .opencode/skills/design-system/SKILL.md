@@ -33,10 +33,12 @@ Orden de la columna de contenido (Server Component `page.tsx`):
    El botón "Limpiar filtros" está SIEMPRE visible arriba de esa cabecera y se
    deshabilita (`disabled`) cuando no hay filtros activos (`data-testid="limpiar-filtros"`)
 5. **Dos columnas** `lg:grid-cols-[minmax(0,1fr)_400px]`:
-   - Izquierda (`min-w-0 flex flex-col gap-6`): bar chart apilado (§4.0) arriba,
-     bento del `SummaryHeader` (§4.1) abajo
-   - Derecha (feed): solo los `ReviewCard` o el `EmptyState` (la cabecera ya
-     vive en la card de filtros)
+- Izquierda (`min-w-0 flex flex-col gap-6`): bar chart apilado (§4.0) arriba,
+      bento del `SummaryHeader` (§4.1) abajo
+    - Derecha (feed): solo los `ReviewCard` o el `EmptyState` (la cabecera ya
+      vive en la card de filtros). El feed **nunca estira la página más que los
+      gráficos**: es un contenedor `lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]
+      lg:overflow-y-auto` con scroll propio para moverse entre reseñas.
 
 Referencia estética común: tarjetas **blancas** `rounded-2xl border-slate-200
 shadow-sm` (incluida la primitiva `ui/card`), `rounded-xl` para elementos
