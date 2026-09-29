@@ -160,6 +160,20 @@ export type OverallSummary = {
 };
 
 /**
+ * Instante de referencia para las fechas relativas de un render.
+ *
+ * Vive acá y no dentro del componente a propósito. `page.tsx` corre una vez
+ * por request (`force-dynamic`) y este número viaja serializado en el payload
+ * RSC, así que el cliente hidrata contra el mismo instante que el servidor y
+ * las tarjetas no cambian de texto. Adentro del componente, en cambio,
+ * `react-hooks/purity` lo marcaría: la regla protege los re-renders del
+ * cliente, y un Server Component no vuelve a renderizar por su cuenta.
+ */
+export function instanteDeRender(): number {
+  return Date.now();
+}
+
+/**
  * Resumen global del panel. Pura a propósito, igual que el resto de `metrics`:
  * los KPIs salen de una sola función testable, no de SQL diseminado en cada
  * tarjeta.

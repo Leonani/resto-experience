@@ -21,6 +21,7 @@ import {
   calculateRatingsByLocation,
   calculateSeriesOverTime,
   filterReviewsByDateRange,
+  instanteDeRender,
 } from "@/lib/metrics";
 import { compareReviewsByPriority } from "@/lib/review-order";
 import { createClientPublic } from "@/lib/supabase/server";
@@ -111,6 +112,12 @@ export default async function Page({ searchParams }: PageProps<"/">) {
     restaurante !== null ||
     params.estado != null ||
     params.estrellas != null;
+
+  // Un único instante para todas las fechas relativas del render. Las tarjetas
+  // son Client Components, así que si cada una calculara "la hora actual" por su
+  // cuenta, el cliente las volvería a pintar con otro instante al hidratarse y
+  // el texto no coincidiría con el HTML del servidor.
+  const ahora = instanteDeRender();
 
   return (
     <main className="flex min-h-screen flex-col bg-[#f8f6f3] text-slate-900 lg:flex-row">
@@ -216,7 +223,7 @@ export default async function Page({ searchParams }: PageProps<"/">) {
                 ) : (
                   <div className="flex flex-col gap-3">
                     {visible.map((review) => (
-                      <ReviewCard key={review.id} review={review} />
+                      <ReviewCard key={review.id} review={review} now={ahora} />
                     ))}
                   </div>
                 )}

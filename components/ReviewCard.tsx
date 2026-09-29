@@ -33,7 +33,13 @@ import type { ApiResponse, DraftResult, SaveReplyResult } from "@/lib/types/api"
  * protegidos en el servidor por la cookie de sesión `HttpOnly` y el chequeo de
  * origen (CSRF).
  */
-export function ReviewCard({ review }: { review: ReviewWithLocation }) {
+export function ReviewCard({
+  review,
+  now,
+}: {
+  review: ReviewWithLocation;
+  now: number;
+}) {
   const router = useRouter();
   const { status, logout } = useAuth();
   const puedeResponder = status === "autenticado";
@@ -166,7 +172,7 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
             </div>
             <span className="text-xs text-slate-500">
               {review.restaurantName} · {review.locationName} ·{" "}
-              {formatRelativeDate(review.published_at)}
+              {formatRelativeDate(review.published_at, now)}
             </span>
           </div>
 
@@ -202,7 +208,7 @@ export function ReviewCard({ review }: { review: ReviewWithLocation }) {
             </p>
             {review.replied_at && (
               <p className="mt-1.5 text-xs text-slate-400">
-                Respondida {formatRelativeDate(review.replied_at)}
+                Respondida {formatRelativeDate(review.replied_at, now)}
               </p>
             )}
           </div>
