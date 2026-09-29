@@ -5,9 +5,11 @@ import { AuthGate } from "@/components/AuthGate";
 import { EmptyState } from "@/components/EmptyState";
 import { FilterBar } from "@/components/FilterBar";
 import { KPICards } from "@/components/KPICards";
+import { MobileSidebar } from "@/components/MobileSidebar";
 import { RatingsStackedChart } from "@/components/RatingsStackedChart";
 import { ReviewCard } from "@/components/ReviewCard";
 import { Sidebar } from "@/components/Sidebar";
+import { SidebarNav } from "@/components/sidebar-nav";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SummaryHeader } from "@/components/SummaryHeader";
 import type { ReviewWithLocation } from "@/components/star-rating";
@@ -106,8 +108,13 @@ export default async function Page({ searchParams }: PageProps<"/">) {
     params.estrellas != null;
 
   return (
-    <main className="flex min-h-screen bg-[#f8f6f3] text-slate-900">
+    <main className="flex min-h-screen flex-col bg-[#f8f6f3] text-slate-900 lg:flex-row">
       <AuthGate>
+        {/* En tablet/móvil la sidebar vive en un drawer abierto con el menú
+            hamburguesa; en lg+ se renderiza la sidebar fija (`hidden lg:flex`) */}
+        <MobileSidebar>
+          <SidebarNav restaurantName={restaurants[0]?.name} />
+        </MobileSidebar>
         <Sidebar restaurantName={restaurants[0]?.name} />
 
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
