@@ -210,23 +210,28 @@ resolver solo.
 compartir y quien la reciba ve exactamente la misma vista, en modo lectura. Generar
 borradores y guardar respuestas exige iniciar sesión con el usuario de la bandeja, que vive
 en la tabla `auth_users` de Supabase con la contraseña hasheada con scrypt (no en el
-entorno); las escrituras envían el token (`REVIEWS_REPLY_TOKEN`, en el entorno) como
-`Authorization: Bearer <token>`.
+entorno). El login emite un token opaco de 32 bytes y lo manda en una cookie `HttpOnly`
+(`reviews_session`); de la tabla `auth_sessions` solo se guarda su SHA-256, con
+`expires_at` y `revoked_at`. Las escrituras exigen esa cookie y que la request venga del
+mismo origen.
 
 **Justificación.** Los filtros viven en la URL (HU-02) justamente para poder pasarle el
 link a un colega; si la autenticación tapara toda la pantalla, ese caso de uso moriría. La
 escritura es la parte no compartible: un visitante puede ver qué filtros usamos, pero no
-contestar en nombre del restaurante.
+contestar en nombre del restaurante. La cookie evita que el token sea legible por
+JavaScript, y `expires_at`/`revoked_at` evitan el token eterno que tenía el modelo de
+secreto compartido: "salir de sesión" ahora deja de servir en serio.
 
 **Consecuencias observables.**
-- Al abrir la app se ve el spinner "Verificando usuario…" mientras se valida el token
-  guardado.
-- Sin sesión (o con token inválido), las tarjetas muestran "Modo lectura. Iniciá sesión
-  para generar borradores y contestar." y hay un botón "Iniciar sesión" en el header,
-  junto al título.
-- `POST /api/save-reply` y `POST /api/generate-draft` sin token responden 401.
-- Sin la configuración en el servidor, la app queda de solo lectura y el login responde
-  503 (fail-closed: nunca se deja pasar una escritura por un accidente de entorno).
+- Al abrir la app se ve el spinner "Verificando usuario…" mientras se resuelve la cookie.
+- Sin sesión (o con cookie inválida, vencida o revocada), las tarjetas muestran "Modo
+  lectura. Iniciá sesión para generar borradores y contestar." y hay un botón "Iniciar
+  sesión" en el footer de la sidebar.
+- `POST /api/save-reply` y `POST /api/generate-draft` sin cookie de sesión responden 401;
+  con cookie válida pero un `Origin` ajeno, 403.
+- La respuesta del login nunca incluye el token: solo `{ user, expiresAt }` y la cookie.
+- El logout revoca la fila en `auth_sessions` (no solo borra la cookie del navegador) y es
+  idempotente: llamarlo sin sesión responde 200 igual.
 
 ---
 
@@ -544,22 +549,23 @@ Escenario: Ninguna auditoría expone credenciales
 
 ```gherkin
 Escenario: Abrir la app sin sesión
-  Dado que no guardé ninguna sesión en este navegador
+  Dado que este navegador no tiene la cookie de sesión
   Cuando abro la bandeja
   Entonces veo el spinner "Verificando usuario…"
   Y el dashboard se muestra completo con las métricas y los filtros
   Y las tarjetas muestran "Modo lectura. Iniciá sesión para generar borradores y contestar."
-  Y hay un botón "Iniciar sesión" en el header (junto al título)
+  Y hay un botón "Iniciar sesión" en el footer de la sidebar
 
 Escenario: Login con credenciales correctas
-  Dado el botón "Iniciar sesión" del header
+  Dado el botón "Iniciar sesión" del footer de la sidebar
   Cuando ingreso usuario y contraseña correctos
-  Entonces el endpoint responde success = "ok" con el token
+  Entonces el endpoint responde success = "ok" con { user, expiresAt } y nunca el token
+  Y el navegador recibe la cookie reviews_session con HttpOnly y SameSite=Lax
   Y se registra un evento AUTH_LOGIN con response_status = "ok"
   Y las tarjetas muestran los botones de responder y generar borrador
 
 Escenario: Login con credenciales incorrectas
-  Dado el botón "Iniciar sesión" del header
+  Dado el botón "Iniciar sesión" del footer de la sidebar
   Cuando ingreso usuario o contraseña incorrectos
   Entonces el endpoint responde success = "fail" con status 401
   Y se registra un evento AUTH_LOGIN con response_status = "fail"
@@ -568,22 +574,44 @@ Escenario: Login con credenciales incorrectas
 
 Escenario: Escribir sin sesión queda cerrado
   Dado que no hay sesión
-  Cuando llamo a save-reply o generate-draft sin token
+  Cuando llamo a save-reply o generate-draft sin la cookie de sesión
   Entonces el endpoint responde success = "fail" con status 401
   Y se registra un evento SAVE_REPLY / GENERATE_AI_DRAFT con response_status = "fail"
-  Y su error_message es "No autorizado: iniciá sesión para responder."
+  Y su error_message es "Sesión no válida o vencida: iniciá sesión de nuevo."
+
+Escenario: Escritura con origen ajeno queda cerrada (CSRF)
+  Dado que hay una sesión válida en este navegador
+  Cuando llamo a save-reply o generate-draft con un Origin de otro sitio
+  Entonces el endpoint responde success = "fail" con status 403
+  Y se registra el rechazo con error_message "Origen de la solicitud no permitido."
+  Y la escritura no ocurre
 
 Escenario: Sesión válida al recargar
   Dado que inicie sesión en este navegador
   Cuando recargo la página
-  Entonces el token guardado se valida contra /api/auth/verify
+  Entonces la cookie se resuelve contra /api/auth/verify
   Y la bandeja se muestra con escritura habilitada
 
-Escenario: Servidor sin token de sesión configurado
-  Dado que el servidor no tiene REVIEWS_REPLY_TOKEN configurado
+Escenario: Logout revoca la sesión de verdad
+  Dado que estoy con sesión iniciada
+  Cuando cierro sesión
+  Entonces el endpoint responde success = "ok" con revoked = true
+  Y la fila de auth_sessions queda con revoked_at
+  Y se registra un evento AUTH_LOGOUT con response_status = "ok"
+  Y una llamada posterior a /api/auth/verify responde 401
+  Y cerrar sesión otra vez responde 200 igual (idempotente)
+
+Escenario: Sesión vencida
+  Dado que la sesión de este navegador pasó su expires_at
+  Cuando recargo la página
+  Entonces /api/auth/verify responde 401
+  Y las escrituras responden 401 sin tocar la base
+
+Escenario: No se puede crear la sesión
+  Dado que auth_sessions no acepta la fila (por ejemplo, la base no responde)
   Cuando intento iniciar sesión con usuario y contraseña válidos
-  Entonces el endpoint responde success = "fail" con status 503
-  Y ninguna escritura puede pasar (fail-closed)
+  Entonces el endpoint responde success = "fail" con status 500
+  Y no se emite cookie (nunca un 200 con una sesión que después no sirve)
 
 Escenario: Usuario inexistente en auth_users
   Dado que el usuario no está registrado en la tabla auth_users de Supabase

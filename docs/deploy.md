@@ -77,16 +77,23 @@ Dashboard del proyecto → **Settings** → **Environment Variables**:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Production, Preview, Development | Sí |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Production**, Preview | **No** |
 | `IMPORT_TOKEN` | **Production**, Preview | **No** |
-| `REVIEWS_REPLY_TOKEN` | **Production**, Preview | **No** |
+| `SESSION_TTL_HOURS` (opcional) | Production, Preview | **No** |
+| `APP_ORIGIN` (opcional) | **Production** | **No** |
 
-Las del bloque de escritura (`SUPABASE_SERVICE_ROLE_KEY`, `IMPORT_TOKEN` y
-`REVIEWS_REPLY_TOKEN`) se marcan como **Sensitive** para que Vercel las enmascare en
-los logs.
+Las del bloque de escritura (`SUPABASE_SERVICE_ROLE_KEY` e `IMPORT_TOKEN`) se marcan
+como **Sensitive** para que Vercel las enmascare en los logs. No hay ningún token
+de sesión que configurar: cada login emite el suyo y lo manda en una cookie
+`HttpOnly` que el navegador adjunta solo.
 
-> El usuario y la contraseña **no** son variables de entorno: viven en la tabla
-> `auth_users` de Supabase (hash scrypt). Antes de desplegar, asegurate de que la tabla
-> existe y tiene la fila del usuario. La tabla y el seed demo están en
+> El usuario, la contraseña y la sesión **no** son variables de entorno: viven en
+> las tablas `auth_users` (hash scrypt) y `auth_sessions` (solo el SHA-256 del
+> token) de Supabase. Antes de desplegar, asegurate de que las dos tablas existen y
+> que `auth_users` tiene la fila del usuario. Tablas y seed demo están en
 > `supabase/schema.sql` (aplicar desde el SQL Editor del dashboard).
+>
+> `APP_ORIGIN` es opcional: si falta, el chequeo de CSRF compara contra el origin
+> de la propia request, que en Vercel ya es el público. Conviene fijarlo si el
+> sitio va a vivir detrás de un proxy.
 
 Después de agregarlas: **Deployments** → redeploy. Vercel no reinyecta variables
 en un build ya hecho.
@@ -116,17 +123,36 @@ curl -X POST https://<tu-dominio>.vercel.app/api/import
 curl -X POST https://<tu-dominio>.vercel.app/api/import \
   -H "x-import-token: $IMPORT_TOKEN"
 
-# La sesión de escritura: login con credenciales correctas responde 200 y
-# devuelve el token; las escrituras sin token responden 401.
+# La sesión de escritura vive en una cookie HttpOnly: hay que usar un cookie jar,
+# porque curl no la adjunta sola.
 # Las credenciales viven en auth_users (ver arriba): usuario demo "gerente",
 # contraseña demo "Password123". En producción, usar la fila real de la tabla.
-curl -X POST https://<tu-dominio>.vercel.app/api/auth/login \
+# → 200 + Set-Cookie: reviews_session=...; HttpOnly; SameSite=Lax; Secure
+curl -c /tmp/jar.txt -X POST https://<tu-dominio>.vercel.app/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"gerente","password":"<PASSWORD_DE_AUTH_USERS>"}'
 
+# La cookie resuelve la sesión: 200 con { user, expiresAt }
+curl -b /tmp/jar.txt -X POST https://<tu-dominio>.vercel.app/api/auth/verify
+
+# Escritura sin sesión ni cookie: 401
 curl -X POST https://<tu-dominio>.vercel.app/api/generate-draft \
   -d '{"reviewId":"rv-101"}'
-# → 401 { success: "fail", message: "No autorizado: iniciá sesión para responder." }
+# → 401 { success: "fail", message: "Sesión no válida o vencida: iniciá sesión de nuevo." }
+
+# CSRF: cookie válida pero Origin ajeno: 403 (403, no 401: la sesión existe,
+# lo que falla es de dónde viene la request)
+curl -b /tmp/jar.txt -X POST https://<tu-dominio>.vercel.app/api/save-reply \
+  -H "Content-Type: application/json" \
+  -H "Origin: https://evil.example" \
+  -d '{"reviewId":"rv-101","replyText":"hola"}'
+# → 403 { success: "fail", message: "Origen de la solicitud no permitido." }
+
+# Logout: 200, revoca en la base y borra la cookie
+curl -b /tmp/jar.txt -c /tmp/jar.txt -X POST https://<tu-dominio>.vercel.app/api/auth/logout
+
+# Verify después del logout: 401 (la revocación es real, no solo borrar la cookie)
+curl -b /tmp/jar.txt -X POST https://<tu-dominio>.vercel.app/api/auth/verify
 ```
 
 ### La anon key no puede escribir
@@ -162,15 +188,16 @@ const supabase = createClient(
 
 - [ ] `git check-ignore -v .env.local` devuelve una regla
 - [ ] `git status` no lista ningún `.env*`
-- [ ] `supabase/schema.sql` aplicado (5 tablas, incluida `auth_users`)
+- [ ] `supabase/schema.sql` aplicado (6 tablas, incluidas `auth_users` y `auth_sessions`)
 - [ ] `auth_users` tiene la fila del usuario de producción (hash scrypt de una contraseña fuerte, **no** `Password123`)
-- [ ] `pg_policies` no muestra políticas de escritura sobre `reviews`, `audit_logs` ni `auth_users`
-- [ ] `SUPABASE_SERVICE_ROLE_KEY`, `IMPORT_TOKEN` y `REVIEWS_REPLY_TOKEN` marcadas como Sensitive
+- [ ] `auth_sessions` vacía: `delete from auth_sessions;` (las sesiones de demo caducan solas, pero no hay razón para dejarlas)
+- [ ] `pg_policies` no muestra políticas de escritura sobre `reviews`, `audit_logs`, `auth_users` ni `auth_sessions`
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` e `IMPORT_TOKEN` marcadas como Sensitive
 - [ ] `IMPORT_TOKEN` generado con `crypto.randomBytes(32)`, no con una palabra
-- [ ] `REVIEWS_REPLY_TOKEN` generado con `crypto.randomBytes(32)`
 - [ ] Deploy triggered tras agregar las variables
 - [ ] `POST /api/import` responde 200 con el token
-- [ ] `POST /api/auth/login` responde 200 y devuelve el token
-- [ ] `POST /api/generate-draft` sin token responde 401
+- [ ] `POST /api/auth/login` responde 200 y manda `Set-Cookie: reviews_session=...` con `HttpOnly` y `Secure`
+- [ ] `POST /api/auth/verify` con esa cookie responde 200; sin ella, 401
+- [ ] `POST /api/generate-draft` con un `Origin:` ajeno responde 403
 - [ ] El UPDATE con anon key falla con 42501
 - [ ] `pnpm verify:metrics` verde antes de subir

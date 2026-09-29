@@ -19,26 +19,27 @@ import type { ApiResponse, LoginResult, VerifyResult } from "@/lib/types/api";
  * sidebar, junto al perfil del usuario.
  *
  * Estados:
- *   - `verificando`: spinner "Verificando usuario…" mientras se valida el token
- *     contra `/api/auth/verify`.
+ *   - `verificando`: spinner "Verificando usuario…" mientras `/api/auth/verify`
+ *     consulta la cookie de sesión.
  *   - `anonimo`: dashboard en modo lectura; `SessionMenu` muestra "Iniciar sesión".
  *   - `autenticado`: escrituras habilitadas; `SessionMenu` muestra la pastilla.
  *
- * El token vive en `localStorage` (`reviews_reply_token`). No está en una
- * cookie a propósito: `REVIEWS_REPLY_TOKEN` no lleva `NEXT_PUBLIC_`, así que el
- * servidor nunca expone el token de respuesta en el HTML.
+ * NO hay token en el cliente. La sesión vive en una cookie `HttpOnly`: el
+ * navegador la manda sola con cada request y el JavaScript —ni siquiera un
+ * XSS— puede leerla. Por eso acá no hay `localStorage` ni headers `Authorization`
+ * que mantener, y los `fetch` usan `credentials: 'same-origin'` para no perder
+ * la cookie.
  */
-
-const TOKEN_KEY = "reviews_reply_token";
 
 type AuthStatus = "verificando" | "anonimo" | "autenticado";
 
 type AuthContextValue = {
   status: AuthStatus;
   user: string | null;
-  token: string | null;
+  /** ISO de expiración de la sesión, para poder mostrarla si hace falta. */
+  expiresAt: string | null;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -46,7 +47,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("verificando");
   const [user, setUser] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -55,33 +56,25 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     // "Verificando usuario…" y después se resuelve la sesión, sin setState
     // síncrono dentro del efecto.
     const id = window.setTimeout(async () => {
-      const saved = window.localStorage.getItem(TOKEN_KEY);
-
-      if (!saved) {
-        if (active) setStatus("anonimo");
-        return;
-      }
-
       try {
         const res = await fetch("/api/auth/verify", {
-          headers: { Authorization: `Bearer ${saved}` },
+          method: "POST",
+          credentials: "same-origin",
         });
         const body = (await res.json()) as ApiResponse<VerifyResult>;
 
         if (!active) return;
 
         if (res.ok && body.success === "ok" && body.data) {
-          setToken(saved);
           setUser(body.data.user);
+          setExpiresAt(body.data.expiresAt);
           setStatus("autenticado");
         } else {
-          // Token inválido o expirado: se descarta y se queda en modo lectura.
-          window.localStorage.removeItem(TOKEN_KEY);
+          // Sin cookie, vencida o revocada: modo lectura.
           setStatus("anonimo");
         }
       } catch {
         if (!active) return;
-        window.localStorage.removeItem(TOKEN_KEY);
         setStatus("anonimo");
       }
     }, 0);
@@ -95,6 +88,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (username: string, password: string) => {
     const res = await fetch("/api/auth/login", {
       method: "POST",
+      credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
@@ -105,22 +99,32 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       throw new Error(body.message || "No se pudo iniciar sesión.");
     }
 
-    window.localStorage.setItem(TOKEN_KEY, body.data.token);
-    setToken(body.data.token);
     setUser(body.data.user);
+    setExpiresAt(body.data.expiresAt);
     setStatus("autenticado");
   }, []);
 
-  const logout = useCallback(() => {
-    window.localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
+  // El logout va al servidor: revocar la sesión es la única forma de que el
+  // token deje de servir. Borrarla solo del navegador dejaría la sesión viva.
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+    } catch {
+      // Si el logout de red falla, la cookie local se limpia igual: peor que un
+      // token vivo es una interfaz que sigue mostrando sesión cerrada.
+    }
+
     setUser(null);
+    setExpiresAt(null);
     setStatus("anonimo");
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, token, login, logout }),
-    [status, user, token, login, logout],
+    () => ({ status, user, expiresAt, login, logout }),
+    [status, user, expiresAt, login, logout],
   );
 
   return (

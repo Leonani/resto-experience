@@ -62,17 +62,25 @@ export type SaveReplyResult = {
 };
 
 /**
- * Payload de un login exitoso: entrega el token que las escrituras exigen
- * (`Authorization: Bearer <token>`) al resto de la sesión.
+ * Payload de un login exitoso. La sesión ya no viaja en la respuesta: el token
+ * va en una cookie `HttpOnly` que el navegador adjunta solo, así que el
+ * JavaScript de la página nunca lo ve.
  */
 export type LoginResult = {
-  token: string;
   user: string;
+  /** ISO de cuándo vence la sesión. El cliente la usa solo para informar. */
+  expiresAt: string;
 };
 
-/** Payload de verificación de sesión. `user` es el nombre del usuario configurado. */
+/** Payload de verificación de sesión. `user` sale de la fila de `auth_sessions`. */
 export type VerifyResult = {
   user: string;
+  expiresAt: string;
+};
+
+/** Payload de un logout. `revoked` dice si había una sesión viva que revocar. */
+export type LogoutResult = {
+  revoked: boolean;
 };
 
 export function buildSuccessResponse<T>(data: T, message: string): ApiResponse<T> {

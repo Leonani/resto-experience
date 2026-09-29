@@ -98,9 +98,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 -- es scrypt (N=16384, r=8, p=1, keylen=64) en formato `scrypt$<salt_hex>$<hash_hex>`.
 -- Se genera con `hashPassword()` de lib/auth.ts.
 --
--- El token `REVIEWS_REPLY_TOKEN` sigue en el entorno: es el secreto de sesión
--- que el login devuelve y que las escrituras exigen como Bearer.
---
 -- RLS SIN políticas a propósito: la tabla guarda hashes de contraseña. Ni la
 -- anon key ni `authenticated` pueden leerla; solo la service role (bypasea
 -- RLS) la consulta desde POST /api/auth/login y /api/auth/verify.
@@ -116,6 +113,32 @@ CREATE TABLE IF NOT EXISTS auth_users (
 -- Mas en el SQL Editor del dashboard de Supabase.
 
 -- ----------------------------------------------------------------------------
+-- Sesiones de escritura. Sustituyen al token compartido `REVIEWS_REPLY_TOKEN`:
+-- cada login emite un token opaco y aleatorio, y acá solo se guarda su SHA-256.
+--
+-- Lo que compra frente al token estático: expiración real (`expires_at`),
+-- revocación real (`revoked_at`, que es lo que hace que el logout sirva) y un
+-- usuario asociado a cada sesión, que es lo que vuelve útil la auditoría.
+--
+-- El token nunca se guarda, así que la sesión no se puede recuperar ni listar
+-- desde la base: solo revocar. Para un panel de un gerente es el trade-off
+-- correcto; si alguna vez hacen falta "mis sesiones activas", se agrega una
+-- pantalla, no se cambia el almacenamiento.
+--
+-- RLS SIN políticas, igual que `auth_users`: guarda hashes de sesión y solo la
+-- service role la toca.
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  token_hash TEXT        NOT NULL UNIQUE,
+  username   TEXT        NOT NULL REFERENCES auth_users (username) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  -- Una sesión que nace vencida es un bug de aplicación, no un dato a guardar.
+  CONSTRAINT auth_sessions_expires_after_creation CHECK (expires_at > created_at)
+);
+
+-- ----------------------------------------------------------------------------
 -- Indices
 -- ----------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_reviews_location    ON reviews(location_id);
@@ -123,6 +146,11 @@ CREATE INDEX IF NOT EXISTS idx_reviews_location    ON reviews(location_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_published   ON reviews(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reviews_replied     ON reviews(replied_at);
 CREATE INDEX IF NOT EXISTS idx_locations_restaurant ON locations(restaurant_id);
+-- El lookup del hot path (`where token_hash = ...`) ya lo cubre el UNIQUE de la
+-- columna. Este parcial es para "sesiones vivas de este usuario", y se mantiene
+-- chico a medida que se acumulan las revocadas.
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_username
+  ON auth_sessions (username) WHERE revoked_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action   ON audit_logs(action);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_status   ON audit_logs(response_status);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created  ON audit_logs(created_at DESC);
@@ -147,6 +175,7 @@ ALTER TABLE locations  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auth_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auth_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Única superficie pública: lectura.
 CREATE POLICY "Lectura pública de restaurantes" ON restaurants FOR SELECT USING (true);

@@ -1,5 +1,5 @@
 import { logAuditEvent } from '@/lib/audit';
-import { isReplyAuthorized, readAuthConfig } from '@/lib/auth';
+import { requireSession } from '@/lib/session-guard';
 import { createClientAdmin } from '@/lib/supabase/client';
 import {
   buildErrorResponse,
@@ -14,14 +14,18 @@ import {
  * Persiste la respuesta que el usuario confirmó. Este es el único camino por
  * el que `reviews.reply_text` se escribe desde la aplicación.
  *
- * Escritura protegida: exige `Authorization: Bearer <token>` (el mismo que
- * devuelve `/api/auth/login`). El rechazo se audita; sin log, un intento sin
- * sesión es indistinguible de que nadie tocó la app.
+ * Escritura protegida: exige la cookie de sesión `HttpOnly` y que la request
+ * venga del mismo origen (CSRF — la cookie la manda el navegador sola, así que
+ * el origen es la frontera). El guard va **antes de parsear el body**: una
+ * request no autorizada no debería poder gastar ni un parseo.
+ *
+ * El rechazo se audita; sin log, un intento sin sesión es indistinguible de que
+ * nadie tocó la app.
  */
 export async function POST(request: Request): Promise<Response> {
-  const config = readAuthConfig();
+  const guard = await requireSession(request);
 
-  if (!isReplyAuthorized(request, config)) {
+  if (!guard.ok) {
     await logAuditEvent({
       action: 'SAVE_REPLY',
       entity_name: 'reviews',
@@ -30,16 +34,15 @@ export async function POST(request: Request): Promise<Response> {
       request_payload: null,
       response_status: 'fail',
       response_data: null,
-      error_message: 'No autorizado: iniciá sesión para responder.',
+      error_message: guard.message,
     });
 
-    return jsonResponse(
-      buildErrorResponse<SaveReplyResult>(
-        'No autorizado: iniciá sesión para responder.',
-      ),
-      401,
-    );
+    return jsonResponse(buildErrorResponse<SaveReplyResult>(guard.message), guard.status);
   }
+
+  // `entity_id` de la auditoría sigue siendo la reseña, que es lo que se mutó.
+  // El usuario va en el payload: antes era imposible saber quién respondió.
+  const sessionUser = guard.session.username;
 
   let reviewId: string | undefined;
   let replyText: string | undefined;
@@ -71,7 +74,7 @@ export async function POST(request: Request): Promise<Response> {
       entity_name: 'reviews',
       entity_id: reviewId,
       method: 'POST',
-      request_payload: { reviewId },
+      request_payload: { reviewId, user: sessionUser },
       response_status: 'fail',
       response_data: null,
       error_message: 'La respuesta no puede estar vacía.',
@@ -102,7 +105,7 @@ export async function POST(request: Request): Promise<Response> {
       entity_name: 'reviews',
       entity_id: reviewId,
       method: 'POST',
-      request_payload: { reviewId },
+      request_payload: { reviewId, user: sessionUser },
       response_status: 'fail',
       response_data: null,
       error_message: lookupError.message,
@@ -120,7 +123,7 @@ export async function POST(request: Request): Promise<Response> {
       entity_name: 'reviews',
       entity_id: reviewId,
       method: 'POST',
-      request_payload: { reviewId },
+      request_payload: { reviewId, user: sessionUser },
       response_status: 'fail',
       response_data: null,
       error_message: `La reseña ${reviewId} no existe.`,
@@ -145,7 +148,7 @@ export async function POST(request: Request): Promise<Response> {
       entity_name: 'reviews',
       entity_id: reviewId,
       method: 'POST',
-      request_payload: { reviewId, replyText: trimmed },
+      request_payload: { reviewId, replyText: trimmed, user: sessionUser },
       response_status: 'fail',
       response_data: null,
       error_message: updateError.message,
@@ -163,7 +166,7 @@ export async function POST(request: Request): Promise<Response> {
       entity_name: 'reviews',
       entity_id: reviewId,
       method: 'POST',
-      request_payload: { reviewId, replyText: trimmed },
+      request_payload: { reviewId, replyText: trimmed, user: sessionUser },
       response_status: 'fail',
       response_data: null,
       error_message: 'La actualización no devolvió filas.',
@@ -186,7 +189,7 @@ export async function POST(request: Request): Promise<Response> {
     entity_name: 'reviews',
     entity_id: reviewId,
     method: 'POST',
-    request_payload: { reviewId, replyText: trimmed },
+    request_payload: { reviewId, replyText: trimmed, user: sessionUser },
     response_status: 'ok',
     response_data: data,
     error_message: null,
