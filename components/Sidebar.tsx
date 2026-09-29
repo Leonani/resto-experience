@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
+import Image from "next/image";
 import {
   CalendarClock,
   FileText,
@@ -23,8 +24,14 @@ export function Sidebar({ restaurantName }: { restaurantName?: string }) {
       <div className="sticky top-0 flex h-screen w-64 flex-col border-r border-slate-200 bg-white px-4 py-6">
         {/* Identidad */}
         <div className="mb-8 flex items-center gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-zinc-900 text-sm font-bold text-white">
-            A
+          <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100">
+            <Image
+              src="/logo-resto.png"
+              alt="Logo Resto Experience"
+              width={40}
+              height={40}
+              className="rounded-xl"
+            />
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900">A Experience</p>
