@@ -62,10 +62,10 @@ export function MetricsDateFilter({ reviewCount }: { reviewCount: number }) {
 
   return (
     <div
-      className={`flex flex-wrap items-end gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${isPending ? "opacity-60 transition-opacity" : ""}`}
+      className={`grid grid-cols-1 items-end gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4 lg:flex lg:flex-wrap ${isPending ? "opacity-60 transition-opacity" : ""}`}
       data-testid="metricas-filtro-fechas"
     >
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 md:col-span-2">
         <Label htmlFor="metricas-desde">Desde</Label>
         <Input
           id="metricas-desde"
@@ -73,11 +73,11 @@ export function MetricsDateFilter({ reviewCount }: { reviewCount: number }) {
           value={desde}
           max={hasta !== "" ? hasta : undefined}
           onChange={(e) => setDesde(e.target.value)}
-          className="w-40"
+          className="w-full lg:w-40"
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 md:col-span-2">
         <Label htmlFor="metricas-hasta">Hasta</Label>
         <Input
           id="metricas-hasta"
@@ -85,7 +85,7 @@ export function MetricsDateFilter({ reviewCount }: { reviewCount: number }) {
           value={hasta}
           min={desde !== "" ? desde : undefined}
           onChange={(e) => setHasta(e.target.value)}
-          className="w-40"
+          className="w-full lg:w-40"
         />
       </div>
 
@@ -94,14 +94,14 @@ export function MetricsDateFilter({ reviewCount }: { reviewCount: number }) {
         size="sm"
         onClick={() => apply({ desde: "", hasta: "" })}
         disabled={!hayRango}
-        className="h-auto px-1 py-0.5 text-xs text-slate-500"
+        className="h-auto px-1 py-0.5 text-xs text-slate-500 md:col-span-2"
         data-testid="metricas-todo-el-historico"
       >
         <RotateCcw className="size-3" aria-hidden="true" />
         Todo el histórico
       </Button>
 
-      <p className="ml-auto text-xs text-slate-500">
+      <p className="text-xs text-slate-500 md:col-span-2 md:text-right lg:ml-auto">
         {hayRango
           ? `${reviewCount} reseñas en el período`
           : "Mostrando todo el histórico"}
