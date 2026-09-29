@@ -104,13 +104,6 @@ export type EstadoFilter = 'pendientes' | 'respondidas' | 'todas';
 
 export type EstrellasFilter = 'todas' | 'alta' | 'media' | 'baja' | 'sin';
 
-export type Filtros = {
-  sede: string | null;
-  restaurante: string | null;
-  estado: EstadoFilter;
-  estrellas: EstrellasFilter;
-};
-
 export const ESTADOS: EstadoFilter[] = ['pendientes', 'respondidas', 'todas'];
 export const ESTRELLAS: EstrellasFilter[] = ['todas', 'alta', 'media', 'baja', 'sin'];
 

@@ -5,7 +5,7 @@
  * Corre sin base de datos. Es la red que detecta que un cambio en la lógica de
  * métricas rompió un caso sucio antes de que el gerente lo note en pantalla.
  *
- *   npm run verify:metrics
+ *   pnpm verify:metrics
  */
 
 import { readFileSync } from 'node:fs';

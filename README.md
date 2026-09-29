@@ -131,6 +131,7 @@ desvía de lo esperado.
 |---|---|
 | `docs/functional-spec.md` | Perfil del usuario, reglas de negocio, historias en Gherkin |
 | `docs/architecture.md` | Modelo relacional, estructura, manejo de errores, decisiones |
+| `docs/deploy.md` | Puesta en marcha: variables de entorno, esquema, despliegue |
 | `.opencode/skills/design-system/` | Reglas de UI: paleta, borrador IA, "Sin datos" |
 | `.opencode/skills/tech-stack/` | Reglas de arquitectura y trampas de Next.js 16 |
 | `supabase/schema.sql` | DDL comentado |
