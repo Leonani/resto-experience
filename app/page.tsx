@@ -9,6 +9,7 @@ import { KPICards } from "@/components/KPICards";
 import { MetricsDateFilter } from "@/components/MetricsDateFilter";
 import { MobileSidebar } from "@/components/MobileSidebar";
 import { ReviewCard } from "@/components/ReviewCard";
+import { SessionErrorBanner } from "@/components/SessionErrorBanner";
 import { Sidebar } from "@/components/Sidebar";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -123,6 +124,8 @@ export default async function Page({ searchParams }: PageProps<"/">) {
 
         <div className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
           <SiteHeader />
+
+          <SessionErrorBanner />
 
           {loadError ? (
             <div

@@ -73,6 +73,22 @@ En la app: botón **"Iniciar sesión"** (en el footer de la sidebar) → usuario
 `gerente`, contraseña `Password123`. Sin sesión, la bandeja se ve igual pero en
 modo lectura (las tarjetas no muestran botones de escritura).
 
+### "Anónimo" y "no pude verificar" no son lo mismo
+
+`AuthGate` distingue dos situaciones que antes se veían idénticas:
+
+| Situación | Cuándo | Qué ve el usuario |
+|---|---|---|
+| `anonimo` | `/api/auth/verify` devuelve **401** | Modo lectura normal, sin avisos |
+| `error` | Cualquier otra respuesta: 403, 5xx, body no-JSON, red caída | Modo lectura **+ banner rojo "No se pudo verificar la sesión"** |
+
+Solo un 401 significa "no hay sesión" (`lib/verify-outcome.ts`, testeado en
+`tests/verify-outcome.test.ts`). Antes, un 500 —por ejemplo, si falta
+`SUPABASE_SERVICE_ROLE_KEY` en el servidor y `createClientAdmin()` lanza— caía
+en el mismo `anonimo`: la app se veía perfectamente sana mientras el servidor
+estaba mal configurado. El listado público sigue funcionando en ambos casos, y
+el botón de login se sigue mostrando en ambos.
+
 **Advertencia:** `Password123` es una contraseña de demo para que cualquiera
 pruebe, no para producción. Antes de desplegar hay que cambiarla (re-hashearla
 con `hashPassword()` de `lib/auth.ts` y actualizar `auth_users`) y borrar las
@@ -87,7 +103,7 @@ login emite el suyo y caduca a las 8 h por defecto (`SESSION_TTL_HOURS`).
 |---|---|
 | `pnpm dev` | Servidor de desarrollo |
 | `pnpm build` | Build de producción |
-| `pnpm test` | Suite de Vitest (140 tests) |
+| `pnpm test` | Suite de Vitest (155 tests) |
 | `pnpm verify:metrics` | Verifica las métricas contra la tabla de referencia |
 | `pnpm typecheck` | Genera los tipos de ruta de Next y corre `tsc` |
 | `pnpm lint` | ESLint |
