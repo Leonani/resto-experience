@@ -36,25 +36,24 @@ Orden de la columna de contenido (Server Component `page.tsx`):
    `calculateOverallSummary` (pura, testeada). **Nunca** fabricar comparativos
    ("+12% vs previo") ni inventar el promedio: sin reseñas calificadas → "Sin
    datos" (`data-testid="avg-sin-datos"`)
-3. **Gráficos a ancho completo** (`flex flex-col gap-6`), SIEMPRE **arriba de los
-   filtros y abajo de las métricas**: primero el `EvolutionChart` (§4.0,
-   evolución temporal) ocupando todo el ancho del contenido, y debajo el bento
-   del `SummaryHeader` (§4.1) también a ancho completo, con sus 3 tarjetas de
-   dona en fila (`sm:grid-cols-2 lg:grid-cols-3`)
+3. **`EvolutionChart` a ancho completo** (§4.0, evolución temporal): el primer
+   gráfico de la pantalla, arriba de todo lo que sigue
 4. **Banner oscuro** `bg-[#0f172a]` texto blanco `rounded-2xl`: la
    **"Reseñas · Hoy & Este Mes"** con el badge `{todayCount} hoy`
-   (`data-testid="resenas-hoy"`), pegado **justo arriba de los filtros** (es
-   contexto del bloque de reseñas, no del encabezado). Es un conteo REAL de
+   (`data-testid="resenas-hoy"`). Es un conteo REAL de
    `published_at` del día (UTC, `calculateOverallSummary`): si el dataset es
    viejo da 0, y 0 es honesto
-5. **FilterBar** completo, en su card blanca `rounded-2xl` (envuelto en
+5. **Bento de donas por sede** (§4.1) a ancho completo (3 tarjetas en fila,
+   `sm:grid-cols-2 lg:grid-cols-3`), **debajo del banner y arriba de los
+   filtros**
+6. **FilterBar** completo, en su card blanca `rounded-2xl` (envuelto en
    `<Suspense>`, ver §5). En el lado derecho de la MISMA card vive
    la cabecera del feed: título **"Feed de reseñas"** + contador de visibles
    (`data-testid="feed-count"`, llega por prop `visibleCount`) + sub
    "Pendientes primero, por estrellas y fecha" (honestidad sobre el orden real).
    El botón "Limpiar filtros" está SIEMPRE visible arriba de esa cabecera y se
    deshabilita (`disabled`) cuando no hay filtros activos (`data-testid="limpiar-filtros"`)
-6. **Reseñas debajo de los filtros**, a todo el ancho del contenido (ya no hay
+7. **Reseñas debajo de los filtros**, a todo el ancho del contenido (ya no hay
    columna lateral ni scroll propio): `ReviewCard` apilados en
    `flex flex-col gap-3`, o el `EmptyState` si no hay visibles. La cabecera del
    feed sigue viviendo en la card de filtros.

@@ -164,18 +164,8 @@ export default async function Page({ searchParams }: PageProps<"/">) {
                 <KPICards overall={overall} />
               </section>
 
-              {/* Gráficos: evolución temporal arriba a ancho completo, bento de
-                  donas abajo ocupando todo el ancho (3 tarjetas en fila) */}
-              <div className="flex flex-col gap-6">
-                <EvolutionChart data={serieTemporal} />
-
-                <SummaryHeader
-                  summaries={summaries}
-                  locations={locations}
-                  restaurants={restaurants}
-                  ratingsByLocation={ratingsByLocation}
-                />
-              </div>
+              {/* Gráfico de evolución temporal, a ancho completo */}
+              <EvolutionChart data={serieTemporal} />
 
               {/* Banner oscuro de contexto diario, justo arriba de los filtros */}
               <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#0f172a] px-5 py-4 text-white shadow-sm">
@@ -194,6 +184,14 @@ export default async function Page({ searchParams }: PageProps<"/">) {
                   {overall.todayCount} hoy
                 </span>
               </div>
+
+              {/* Bento de donas por sede, debajo del banner y arriba de los filtros */}
+              <SummaryHeader
+                summaries={summaries}
+                locations={locations}
+                restaurants={restaurants}
+                ratingsByLocation={ratingsByLocation}
+              />
 
               <Suspense
                 fallback={<div className="h-[120px] rounded-2xl border border-slate-200 bg-white" />}
