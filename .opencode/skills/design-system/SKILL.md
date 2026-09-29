@@ -47,8 +47,8 @@ interiores (pills, bloques de respuesta).
 Server Component sin estado. `w-64` pegada con `sticky top-0 h-screen`, `bg-white
 border-r`. Contenido:
 
-- Identidad: avatar `rounded-xl bg-zinc-900` con la inicial del local + "A
-  Experience" / "Resto Experience"
+- Identidad: logo de la app (`/logo-resto.png`, sin fondo) en caja
+  `rounded-xl` + título en negrita "Resto Experience" (sin subtítulo)
 - Navegación por secciones (`Marketing`, `Operations`, `Analytics`) con ítems
   `rounded-xl`: `Reviews` es el ítem **activo** (`bg-zinc-900 text-white`),
   `Reservations` lleva la píldora `bg-slate-100` del diseño de referencia,

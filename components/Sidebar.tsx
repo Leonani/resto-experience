@@ -35,8 +35,9 @@ export function Sidebar({ restaurantName }: { restaurantName?: string }) {
             />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900">A Experience</p>
-            <p className="text-xs text-slate-500">Resto Experience</p>
+            <p className="truncate text-sm font-semibold text-slate-900">
+              Resto Experience
+            </p>
           </div>
         </div>
 
