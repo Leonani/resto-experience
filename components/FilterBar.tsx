@@ -127,7 +127,11 @@ export function FilterBar({
     searchParams.get("sede") !== null ||
     searchParams.get("restaurante") !== null ||
     searchParams.get("estado") !== null ||
-    searchParams.get("estrellas") !== null;
+    searchParams.get("estrellas") !== null ||
+    // El período de las métricas también es un filtro: si no contara, el botón
+    // "Limpiar filtros" quedaría deshabilitado con un rango activo en pantalla.
+    searchParams.get("desde") !== null ||
+    searchParams.get("hasta") !== null;
 
   return (
     <div

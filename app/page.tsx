@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { EvolutionChart } from "@/components/EvolutionChart";
 import { FilterBar } from "@/components/FilterBar";
 import { KPICards } from "@/components/KPICards";
+import { MetricsDateFilter } from "@/components/MetricsDateFilter";
 import { MobileSidebar } from "@/components/MobileSidebar";
 import { ReviewCard } from "@/components/ReviewCard";
 import { Sidebar } from "@/components/Sidebar";
@@ -18,6 +19,7 @@ import {
   calculateOverallSummary,
   calculateRatingsByLocation,
   calculateSeriesOverTime,
+  filterReviewsByDateRange,
 } from "@/lib/metrics";
 import { compareReviewsByPriority } from "@/lib/review-order";
 import { createClientPublic } from "@/lib/supabase/server";
@@ -49,6 +51,9 @@ export default async function Page({ searchParams }: PageProps<"/">) {
   const restaurante = typeof params.restaurante === "string" ? params.restaurante : null;
   const estado = (typeof params.estado === "string" ? params.estado : "pendientes") as EstadoFilter;
   const estrellas = (typeof params.estrellas === "string" ? params.estrellas : "todas") as EstrellasFilter;
+  // Rango de fechas de las MÉTRICAS. Sin params = todo el historial.
+  const desde = typeof params.desde === "string" ? params.desde : null;
+  const hasta = typeof params.hasta === "string" ? params.hasta : null;
 
   let locations: Location[] = [];
   let restaurants: Restaurant[] = [];
@@ -78,7 +83,8 @@ export default async function Page({ searchParams }: PageProps<"/">) {
         : "No se pudo conectar con la base de datos.";
   }
 
-  const overall = calculateOverallSummary(reviews);
+  const reviewsEnRango = filterReviewsByDateRange(reviews, { desde, hasta });
+  const overall = calculateOverallSummary(reviewsEnRango);
 
   const summaries = calculateAllSummaries(
     locations.map((l) => l.id),
@@ -144,9 +150,17 @@ export default async function Page({ searchParams }: PageProps<"/">) {
                     </h2>
                   </div>
                   <span className="text-sm text-white/60">
-                    {overall.totalReviews} reseñas en total
+                    {desde || hasta ? `${formatearRango(desde, hasta)} · ` : ""}
+                    {overall.totalReviews} reseñas
                   </span>
                 </div>
+
+                <Suspense
+                  fallback={<div className="h-[76px] rounded-2xl border border-slate-200 bg-white" />}
+                >
+                  <MetricsDateFilter reviewCount={overall.totalReviews} />
+                </Suspense>
+
                 <KPICards overall={overall} />
               </section>
 
@@ -214,9 +228,25 @@ export default async function Page({ searchParams }: PageProps<"/">) {
   );
 }
 
+/** "2026-09-01" → "01/09/2026". Formato fijo (sin `Intl`) para que servidor y cliente no difieran. */
+function formatearDia(iso: string | null): string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+}
+
+/** Etiqueta del período activo; cadena vacía si no hay rango (historial completo). */
+function formatearRango(desde: string | null, hasta: string | null): string {
+  const d = formatearDia(desde);
+  const h = formatearDia(hasta);
+
+  if (d && h) return `${d} – ${h}`;
+  if (d) return `desde ${d}`;
+  if (h) return `hasta ${h}`;
+  return "";
+}
+
 /**
  * Filtros aplicados en el servidor.
- *
  * `rating: null` se resuelve por separado de los rangos numéricos: no es un
  * 0, así que no entra en `ESTRELLAS_RANGO`.
  */
