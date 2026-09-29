@@ -135,12 +135,12 @@ export function FilterBar({
 
   return (
     <div
-      className={`flex flex-wrap items-end gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${isPending ? "opacity-60 transition-opacity" : ""}`}
+      className={`grid grid-cols-1 items-end gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4 lg:flex lg:flex-wrap ${isPending ? "opacity-60 transition-opacity" : ""}`}
     >
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 md:col-span-2">
         <Label htmlFor="filtro-restaurante">Restaurante</Label>
         <Select value={restaurante} onValueChange={updateRestaurante}>
-          <SelectTrigger id="filtro-restaurante" className="w-56">
+          <SelectTrigger id="filtro-restaurante" className="w-full lg:w-56">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -154,10 +154,10 @@ export function FilterBar({
         </Select>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 md:col-span-2">
         <Label htmlFor="filtro-sede">Sede</Label>
         <Select value={sede} onValueChange={(v) => update("sede", v)}>
-          <SelectTrigger id="filtro-sede" className="w-48">
+          <SelectTrigger id="filtro-sede" className="w-full lg:w-48">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -171,10 +171,10 @@ export function FilterBar({
         </Select>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 md:col-span-2">
         <Label htmlFor="filtro-estado">Estado</Label>
         <Select value={estado} onValueChange={(v) => update("estado", v)}>
-          <SelectTrigger id="filtro-estado" className="w-40">
+          <SelectTrigger id="filtro-estado" className="w-full lg:w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -187,10 +187,10 @@ export function FilterBar({
         </Select>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 md:col-span-2">
         <Label htmlFor="filtro-estrellas">Calificación</Label>
         <Select value={estrellas} onValueChange={(v) => update("estrellas", v)}>
-          <SelectTrigger id="filtro-estrellas" className="w-44">
+          <SelectTrigger id="filtro-estrellas" className="w-full lg:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -206,7 +206,7 @@ export function FilterBar({
       {/* Cabecera del feed: convive con los filtros en la misma card.
           El orden mostrado es el real (compareReviewsByPriority), nunca el de
           llegada: el subtítulo lo declara en vez de fingir un feed cronológico. */}
-      <div className="ml-auto flex flex-col items-end gap-1.5">
+      <div className="flex flex-col items-end gap-1.5 md:col-span-4 lg:ml-auto">
         <Button
           variant="ghost"
           size="sm"
