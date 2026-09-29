@@ -154,7 +154,7 @@ export default async function Page({ searchParams }: PageProps<"/">) {
                 />
               </Suspense>
 
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
                 {/* Columna izquierda: gráficos y bento por sede */}
                 <div className="flex min-w-0 flex-col gap-6">
                   <RatingsStackedChart
@@ -172,8 +172,13 @@ export default async function Page({ searchParams }: PageProps<"/">) {
                 </div>
 
                 {/* Columna derecha: feed de reseñas (la cabecera vive en la
-                    card de filtros; acá solo el listado) */}
-                <aside className="flex min-w-0 flex-col gap-3" aria-label="Feed de reseñas">
+                    card de filtros; acá solo el listado). El feed nunca estira
+                    la página más allá de los gráficos: queda anclado con scroll
+                    propio dentro de la altura de la ventana. */}
+                <aside
+                  className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:min-h-0 lg:overflow-y-auto lg:pr-1"
+                  aria-label="Feed de reseñas"
+                >
                   {visible.length === 0 ? (
                     <EmptyState hayFiltros={hayFiltros} />
                   ) : (
