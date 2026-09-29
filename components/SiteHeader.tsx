@@ -1,7 +1,6 @@
 "use client";
 
-import { LogOut, Sparkles } from "lucide-react";
-import Image from "next/image";
+import { LogOut, Sparkles, Star } from "lucide-react";
 import { useState } from "react";
 
 import { useAuth } from "@/components/AuthGate";
@@ -29,14 +28,8 @@ export function SiteHeader() {
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex items-center gap-3">
-        <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-slate-100 shadow-sm">
-          <Image
-            src="/logo-resto.png"
-            alt="Logo Resto Experience"
-            width={44}
-            height={44}
-            className="rounded-2xl"
-          />
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-zinc-900 text-white shadow-sm">
+          <Star className="size-5" aria-hidden="true" />
         </span>
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
