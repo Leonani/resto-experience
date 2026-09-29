@@ -29,8 +29,8 @@ Orden de la columna de contenido (Server Component `page.tsx`):
    la cabecera del feed: título **"Feed de reseñas"** + contador de visibles
    (`data-testid="feed-count"`, llega por prop `visibleCount`) + sub
    "Pendientes primero, por estrellas y fecha" (honestidad sobre el orden real).
-   Cuando hay filtros activos, el botón "Limpiar filtros" se agrupa arriba de
-   esa cabecera
+   El botón "Limpiar filtros" está SIEMPRE visible arriba de esa cabecera y se
+   deshabilita (`disabled`) cuando no hay filtros activos (`data-testid="limpiar-filtros"`)
 5. **Dos columnas** `lg:grid-cols-[minmax(0,1fr)_400px]`:
    - Izquierda (`min-w-0 flex flex-col gap-6`): bar chart apilado (§4.0) arriba,
      bento del `SummaryHeader` (§4.1) abajo
