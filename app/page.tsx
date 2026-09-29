@@ -183,7 +183,7 @@ export default async function Page({ searchParams }: PageProps<"/">) {
                     la página más allá de los gráficos: queda anclado con scroll
                     propio dentro de la altura de la ventana. */}
                 <aside
-                  className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:min-h-0 lg:overflow-y-auto lg:pr-1"
+                  className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem-110px)] lg:min-h-0 lg:overflow-y-auto lg:pr-1"
                   aria-label="Feed de reseñas"
                 >
                   {visible.length === 0 ? (
