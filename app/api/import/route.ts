@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { logAuditEvent } from '@/lib/audit';
-import { importReviewsFile } from '@/lib/import/reviews';
+import { asImportClient, importReviewsFile } from '@/lib/import/reviews';
+import { createClientAdmin } from '@/lib/supabase/client';
 import {
   buildErrorResponse,
   buildSuccessResponse,
@@ -37,7 +38,7 @@ export async function POST(request: Request): Promise<Response> {
     const file = JSON.parse(raw) as ReviewsFile;
 
     const { outcome, restaurantsSeeded, locationsSeeded, error } =
-      await importReviewsFile(file);
+      await importReviewsFile(file, asImportClient(createClientAdmin()));
 
     if (error) {
       // Se audita el fallo. Sin esto, un error de importación sería

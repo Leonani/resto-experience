@@ -1,6 +1,5 @@
 import 'server-only';
 
-import { createClientAdmin } from '@/lib/supabase/client';
 import type { SkippedReview } from '@/lib/types/api';
 import { dedupeReviews } from '@/lib/import/dedupe';
 import type { SourceReview, ReviewsFile } from '@/lib/types/review';
@@ -15,7 +14,57 @@ import type { SourceReview, ReviewsFile } from '@/lib/types/review';
  * Deduplicar ANTES de validar evita que un duplicado con sede inválida se
  * cuente dos veces como omitido. Y hace que los contadores de inserted /
  * updated / skipped sumen exactamente `received - duplicates`.
+ *
+ * El cliente de Supabase se INYECTA por parámetro, igual que en `lib/session.ts`:
+ * `createClientAdmin()` importa `server-only` y lee el entorno, así que sin
+ * inyección esta capa no se puede testear sin red. La Route Handler lo pasa.
  */
+
+type QueryError = { message: string } | null;
+type ManyResult = { data: unknown; error: QueryError };
+
+/**
+ * Subconjunto de `SupabaseClient` que usa esta capa.
+ *
+ * Los builders de supabase-js v2 son *thenable*, no `Promise`: por eso el
+ * contrato dice `PromiseLike`. Ver la nota sobre `TS2589` en `lib/session.ts`.
+ */
+export type ImportClient = {
+  from: (
+    table: 'restaurants' | 'locations' | 'reviews',
+  ) => {
+    select: (columns: string) => PromiseLike<ManyResult>;
+    upsert: (
+      rows: Record<string, unknown>[],
+      options: { onConflict: string },
+    ) => PromiseLike<{ error: QueryError }>;
+  };
+};
+
+/** Adaptador de `SupabaseClient` a `ImportClient`. Único casteo del módulo. */
+export function asImportClient(client: unknown): ImportClient {
+  return client as ImportClient;
+}
+
+/**
+ * Fila de `reviews` tal como la necesita la preservación de respuestas.
+ *
+ * Valida la forma en runtime en vez de confiar en el tipo genérico: `data` es
+ * `unknown` a propósito, porque la respuesta de PostgREST no está garantizada
+ * por el compilador.
+ */
+function toExistingReply(value: unknown): { id: string; reply_text: string | null; replied_at: string | null } | null {
+  if (!value || typeof value !== 'object') return null;
+
+  const row = value as Record<string, unknown>;
+  if (typeof row.id !== 'string') return null;
+
+  return {
+    id: row.id,
+    reply_text: typeof row.reply_text === 'string' ? row.reply_text : null,
+    replied_at: typeof row.replied_at === 'string' ? row.replied_at : null,
+  };
+}
 
 export type ImportOutcome = {
   received: number;
@@ -33,9 +82,8 @@ export type ImportOutcome = {
 export async function upsertReviews(
   reviews: SourceReview[],
   validLocationIds: Set<string>,
+  supabase: ImportClient,
 ): Promise<{ inserted: number; updated: number; skipped: SkippedReview[]; error: string | null }> {
-  const supabase = createClientAdmin();
-
   // Respuestas ya guardadas, para no sobrescribirlas con las del archivo.
   const { data: existing, error: readError } = await supabase
     .from('reviews')
@@ -45,13 +93,19 @@ export async function upsertReviews(
     return { inserted: 0, updated: 0, skipped: [], error: readError.message };
   }
 
+  // Una fila con una forma inesperada no es una respuesta guardada: se ignora
+  // en vez de romper el import entero.
+  const existingRows = (Array.isArray(existing) ? existing : [])
+    .map(toExistingReply)
+    .filter((row): row is NonNullable<typeof row> => row !== null);
+
   const savedReplies = new Map<string, { text: string; at: string | null }>();
-  for (const row of existing ?? []) {
+  for (const row of existingRows) {
     if (row.reply_text) {
       savedReplies.set(row.id, { text: row.reply_text, at: row.replied_at });
     }
   }
-  const existingIds = new Set((existing ?? []).map((r) => r.id));
+  const existingIds = new Set(existingRows.map((r) => r.id));
 
   const rows = [];
   const skipped: SkippedReview[] = [];
@@ -108,14 +162,12 @@ export async function upsertReviews(
 /**
  * Importación completa desde el contenido de `data/reviews.json`.
  */
-export async function importReviewsFile(file: ReviewsFile): Promise<{
+export async function importReviewsFile(file: ReviewsFile, supabase: ImportClient): Promise<{
   outcome: ImportOutcome;
   restaurantsSeeded: number;
   locationsSeeded: number;
   error: string | null;
 }> {
-  const supabase = createClientAdmin();
-
   // El catálogo se siembra desde el archivo, de forma idempotente por
   // `onConflict`. Reejecutar actualiza el nombre sin duplicar. Solo se crean
   // las sedes que el archivo declara: nunca una sede nueva por un dato sucio.
@@ -160,7 +212,11 @@ export async function importReviewsFile(file: ReviewsFile): Promise<{
   const validLocationIds = new Set(file.locations.map((l) => l.id));
 
   // RN-02 y upsert después.
-  const { inserted, updated, skipped, error } = await upsertReviews(unique, validLocationIds);
+  const { inserted, updated, skipped, error } = await upsertReviews(
+    unique,
+    validLocationIds,
+    supabase,
+  );
 
   return {
     outcome: {
